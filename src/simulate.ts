@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { runSimulation } from "../simulation";
+import { runSimulation } from "./simulation";
 
 const router = express.Router();
 
