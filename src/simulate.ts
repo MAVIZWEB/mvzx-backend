@@ -1,33 +1,21 @@
-import { Router } from "express";
+import express from "express";
 import { z } from "zod";
-import {
-  runFullSimulation,
-  defaultSimOptions,
-  SimResult
-} from "../simulation.js";
+import { runSimulation } from "../simulation";
 
-const router = Router();
+const router = express.Router();
 
-// input validation
-const SimBody = z.object({
-  options: z.object({
-    stages: z.number().int().positive().default(10),
-    principalSlotPrice: z.number().positive().default(2000),
-    referralPushCount: z.number().int().positive().default(32),
-    preferReferralToSetNextStagePrice: z.boolean().optional().default(true)
-  }).optional()
+const simulationSchema = z.object({
+  userId: z.string(),
+  stage: z.number().int().positive(),
 });
 
-router.post("/", async (req, res) => {
-  const parse = SimBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: parse.error.format() });
-  const body = parse.data;
-  const opts = { ...defaultSimOptions, ...(body.options || {}) };
+router.post("/", (req, res) => {
   try {
-    const result: SimResult = runFullSimulation(opts);
-    res.json({ ok: true, result });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err.message || String(err) });
+    const parsed = simulationSchema.parse(req.body);
+    const result = runSimulation(parsed);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
   }
 });
 
