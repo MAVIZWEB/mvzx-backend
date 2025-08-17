@@ -1,28 +1,18 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { PrismaClient } from "@prisma/client";
-
-import authRoutes from "./routes/auth";
-import matrixRoutes from "./routes/matrix";
-import walletRoutes from "./routes/wallet";
+import simulateRouter from "./routes/simulate.js";
 
 dotenv.config();
 const app = express();
-const prisma = new PrismaClient();
-
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.json({ message: "MVZx Backend Running ✅" });
-});
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.use("/auth", authRoutes);
-app.use("/matrix", matrixRoutes);
-app.use("/wallet", walletRoutes);
+app.use("/simulate", simulateRouter);
 
-const PORT = process.env.PORT || 4000;
+const PORT = Number(process.env.PORT || 10000);
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`MVZx backend simulation API running on :${PORT}`);
 });
