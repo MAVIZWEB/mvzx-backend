@@ -1,19 +1,29 @@
+ // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  // NOTE: replace with your production Postgres DATABASE_URL in Render.
+  // For local dev you may still use sqlite if you want, but do NOT use sqlite in production.
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VoteChoice {
+  UP
+  HOLD
+  DOWN
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  wallet    String   @unique
-  createdAt DateTime @default(now())
-  balances  Balance[]
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  wallet    String    @unique
+  createdAt DateTime  @default(now())
+  balances  Balance[] 
   matrices  Matrix[]
+  votes     Vote[]    // relation to votes
 }
 
 model Balance {
@@ -21,7 +31,10 @@ model Balance {
   token     String
   amount    Float    @default(0)
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, token])
 }
 
 model Matrix {
@@ -30,5 +43,20 @@ model Matrix {
   position  Int
   earnings  Float    @default(0)
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, stage])
+}
+
+model Vote {
+  id       Int       @id @default(autoincrement())
+  userId   Int
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  choice   VoteChoice
+  dateKey  String    // "YYYY-MM-DD" (Lagos date) to ensure uniqueness per day
+  createdAt DateTime @default(now())
+
+  @@unique([userId, dateKey]) // prevents a user voting more than once per dateKey
+  @@index([dateKey])
 }
