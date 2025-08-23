@@ -1,35 +1,27 @@
- import dotenv from "dotenv";
+ import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+
+import games from "./routes/games"; // ✅ use plural name
+
 dotenv.config();
 
-import express from "express";
-import cors from "cors";
-
-// route imports
-import auth from "./routes/auth";
-import payments from "./routes/payments";
-import matrix from "./routes/matrix";
-import wallet from "./routes/wallet";
-import game from "./routes/game";
-import pub from "./routes/public";
-
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: process.env.FRONT_ORIGIN || "*",
-  credentials: true
-}));
-app.use(express.json({ limit: "1mb" }));
+// Middlewares
+app.use(cors());
+app.use(express.json());
 
-app.use("/auth", auth);
-app.use("/payments", payments);
-app.use("/matrix", matrix);
-app.use("/wallet", wallet);
-app.use("/game", game);
-app.use("/public", pub);
+// Routes
+app.use("/games", games); // endpoint: POST /games/spin
 
-app.get("/", (_req, res) => res.send("✅ MVZx Backend is running"));
+// Health check route
+app.get("/", (_req, res) => {
+  res.send("MVZx backend is running 🚀");
+});
 
-const PORT = process.env.PORT || 8080;
+// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 API running on port ${PORT} [LIVE=${process.env.LIVE}]`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
