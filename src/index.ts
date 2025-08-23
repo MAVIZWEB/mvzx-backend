@@ -1,20 +1,22 @@
-import express from "express";
+ import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+import auth from "./routes/auth";
+import payments from "./routes/payments";
+import matrix from "./routes/matrix";
+import wallet from "./routes/wallet";
+import game from "./routes/game";
+import pub from "./routes/public";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: process.env.FRONT_ORIGIN, credentials: true }));
+app.use(express.json({ limit: "1mb" }));
 
-// Example route
-app.get("/", (_req, res) => {
-  res.send("🚀 MVZX Backend running on Render!");
-});
+app.use("/auth", auth);
+app.use("/payments", payments);
+app.use("/matrix", matrix);
+app.use("/wallet", wallet);
+app.use("/game", game);
+app.use("/public", pub);
 
-// Port from env or fallback
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
-});
+app.get("/", (_req, res)=>res.send("mvzx-backend ok"));
+app.listen(process.env.PORT || 8080, ()=>console.log("API up"));
