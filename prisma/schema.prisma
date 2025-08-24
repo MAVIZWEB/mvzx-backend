@@ -1,62 +1,72 @@
  // prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  // NOTE: replace with your production Postgres DATABASE_URL in Render.
-  // For local dev you may still use sqlite if you want, but do NOT use sqlite in production.
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-enum VoteChoice {
-  UP
-  HOLD
-  DOWN
-}
-
+/// User accounts (login, affiliate/referrals, matrix placement)
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  wallet    String    @unique
-  createdAt DateTime  @default(now())
-  balances  Balance[] 
-  matrices  Matrix[]
-  votes     Vote[]    // relation to votes
-}
-
-model Balance {
-  id        Int      @id @default(autoincrement())
-  token     String
-  amount    Float    @default(0)
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  referralCode String @unique
+  referredBy   String? // referralCode of sponsor
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId, token])
+  // Relations
+  wallet    Wallet?
+  payments  Payment[]
+  matrix    Matrix[]
 }
 
+/// Wallets to hold USDT, MVZx, reserve balances
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  usdt      Float    @default(0.0)
+  mvzx      Float    @default(0.0)
+  reserve   Float    @default(0.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+/// Payments made by users (token purchases, withdrawals, etc.)
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Float
+  token     String   // "USDT" | "MVZX"
+  type      String   // "purchase" | "withdrawal" | "reward"
+  txHash    String?  // blockchain transaction reference
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+/// Matrix system for affiliate plan
 model Matrix {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
+  userId    String
   stage     Int
   position  Int
-  earnings  Float    @default(0)
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  @@index([userId, stage])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-model Vote {
-  id       Int       @id @default(autoincrement())
-  userId   Int
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  choice   VoteChoice
-  dateKey  String    // "YYYY-MM-DD" (Lagos date) to ensure uniqueness per day
+/// Track referrals
+model Referral {
+  id        String   @id @default(cuid())
+  sponsorId String
+  referredId String
   createdAt DateTime @default(now())
-
-  @@unique([userId, dateKey]) // prevents a user voting more than once per dateKey
-  @@index([dateKey])
 }
