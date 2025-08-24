@@ -1,43 +1,54 @@
- import { ethers } from "ethers";
-import axios from "axios";
+import { ethers } from "ethers";
+import fetch from "node-fetch";
 
-const PROVIDER_URL = process.env.BSC_RPC || "https://bsc-dataseed.binance.org/";
-const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL);
+const USDT_CONTRACT_ADDRESS = process.env.USDT_CONTRACT_ADDRESS as string;
+const INFURA_URL = process.env.INFURA_URL as string;
+const RESERVE_WALLET = process.env.RESERVE_WALLET as string;
 
-const USDT = (process.env.USDT_CONTRACT_ADDRESS || "0x55d398326f99059fF775485246999027B3197955");
-const RECV = (process.env.USDT_RECEIVE_WALLET || "").toLowerCase();
-const ABI = ["event Transfer(address indexed from, address indexed to, uint256 value)"];
-const contract = new ethers.Contract(USDT, ABI, provider);
+const abi = [
+  "event Transfer(address indexed from, address indexed to, uint256 value)"
+];
 
-async function postNotify(userId: number, amount: number, txHash: string) {
-  try {
-    const url = `${process.env.PUBLIC_BASE}/payments/usdt/notify`;
-    await axios.post(url, { userId, amountUSDT: amount, txHash });
-    console.log("Notified backend:", userId, amount);
-  } catch (e:any) {
-    console.error("Notify error:", e.message || e);
-  }
+async function main() {
+  const provider = new ethers.JsonRpcProvider(INFURA_URL);
+  const contract = new ethers.Contract(USDT_CONTRACT_ADDRESS, abi, provider);
+
+  console.log("Watching USDT transfers...");
+
+  contract.on(
+    "Transfer",
+    async (
+      from: string,
+      to: string,
+      value: ethers.BigNumberish,
+      event: ethers.EventLog
+    ) => {
+      try {
+        console.log(`Transfer detected: from=${from}, to=${to}, value=${value.toString()}`);
+
+        // Only track transfers to the reserve wallet
+        if (to.toLowerCase() === RESERVE_WALLET.toLowerCase()) {
+          const amount = ethers.formatUnits(value, 6); // USDT uses 6 decimals
+
+          console.log(`Deposit detected! Amount: ${amount} USDT`);
+
+          // Notify backend
+          await fetch(`${process.env.BACKEND_URL}/api/payments/usdt`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from,
+              to,
+              amount,
+              txHash: event.transactionHash
+            }),
+          });
+        }
+      } catch (err) {
+        console.error("Error handling USDT transfer:", err);
+      }
+    }
+  );
 }
 
-console.log("USDT watcher starting. Listening for transfers to", RECV);
-
-contract.on("Transfer", async (from: any, to: any, value: any, event: any) => {
-  try {
-    if (!RECV) return;
-    if (String(to).toLowerCase() !== RECV.toLowerCase()) return;
-    const amount = Number(ethers.utils.formatUnits(value, 6)); // USDT uses 6 decimals
-    console.log("Incoming USDT:", amount, "from", from, "tx", event.transactionHash);
-
-    // Lookup user by wallet from backend public lookup
-    const lookupUrl = `${process.env.PUBLIC_BASE}/public/lookup-wallet?wallet=${from}`;
-    const resp = await axios.get(lookupUrl);
-    const j = resp.data;
-    if (j?.found && j.userId) {
-      await postNotify(j.userId, amount, event.transactionHash);
-    } else {
-      console.log("No user mapping for", from);
-    }
-  } catch (e:any) {
-    console.error("Watcher error:", e.message || e);
-  }
-});
+main().catch((err) => console.error("Watcher failed:", err));
