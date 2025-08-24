@@ -1,5 +1,3 @@
- // prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,64 +7,72 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// User accounts (login, affiliate/referrals, matrix placement)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  referralCode String @unique
-  referredBy   String? // referralCode of sponsor
+  id            String        @id @default(uuid())
+  email         String        @unique
+  password      String
+  wallet        String?       // User's personal wallet (for USDT deposits/withdrawals)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  walletBalance WalletBalance? // Relation to balances
+  matrix        Matrix[]
+  staking       Staking[]
+  referrals     Referral[]    @relation("UserReferrals")
+  referredBy    Referral?     @relation("ReferralSource", fields: [referredById], references: [id])
+  referredById  String?
+  transactions  Transaction[]
+}
+
+model WalletBalance {
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  usdt      Float   @default(0)
+  mvzx      Float   @default(0)
+  black     Float   @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  wallet    Wallet?
-  payments  Payment[]
-  matrix    Matrix[]
 }
 
-/// Wallets to hold USDT, MVZx, reserve balances
-model Wallet {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  usdt      Float    @default(0.0)
-  mvzx      Float    @default(0.0)
-  reserve   Float    @default(0.0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User     @relation(fields: [userId], references: [id])
-}
-
-/// Payments made by users (token purchases, withdrawals, etc.)
-model Payment {
-  id        String   @id @default(cuid())
-  userId    String
-  amount    Float
-  token     String   // "USDT" | "MVZX"
-  type      String   // "purchase" | "withdrawal" | "reward"
-  txHash    String?  // blockchain transaction reference
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
-}
-
-/// Matrix system for affiliate plan
 model Matrix {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
-  stage     Int
-  position  Int
-  createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id])
+  stage     Int
+  earnings  Float    @default(0) // track user’s earnings in matrix
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-/// Track referrals
-model Referral {
-  id        String   @id @default(cuid())
-  sponsorId String
-  referredId String
+model Transaction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // deposit, withdrawal, staking, referral, etc.
+  amount    Float
+  token     String   // USDT, MVZX, BLACK
+  status    String   @default("pending")
+  txHash    String?  // For USDT blockchain payments
   createdAt DateTime @default(now())
+}
+
+model Staking {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  reward    Float    @default(0)
+  startDate DateTime @default(now())
+  endDate   DateTime?
+}
+
+model Referral {
+  id         String   @id @default(uuid())
+  referrerId String
+  referredId String
+  referrer   User     @relation("UserReferrals", fields: [referrerId], references: [id])
+  referred   User     @relation("ReferralSource", fields: [referredId], references: [id])
+  reward     Float    @default(0)
+  createdAt  DateTime @default(now())
 }
