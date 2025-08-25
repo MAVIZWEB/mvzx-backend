@@ -1,42 +1,88 @@
  import { Router } from "express";
-import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../prisma/client"; // ensure prisma client is exported
+import bcrypt from "bcryptjs";
+import { nanoid } from "nanoid";
 
-const prisma = new PrismaClient();
 const router = Router();
 
-router.post("/register", async (req, res) => {
+// Signup new user
+router.post("/signup", async (req, res) => {
   try {
-    const { email, wallet } = req.body;
-    if (!email || !wallet) return res.status(400).json({ error: "email & wallet required" });
+    const { email, pin, confirmPin } = req.body;
 
-    const user = await prisma.user.upsert({
-      where: { email },
-      create: { email, wallet },
-      update: { wallet }
+    if (!email || !pin || !confirmPin) {
+      return res.status(400).json({ error: "All fields are required." });
+    }
+
+    if (pin !== confirmPin) {
+      return res.status(400).json({ error: "PINs do not match." });
+    }
+
+    // Check if email exists
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ error: "Email already registered." });
+    }
+
+    // Hash PIN
+    const hashedPin = await bcrypt.hash(pin, 10);
+
+    // Assign a random wallet address (simulate here; later can integrate blockchain)
+    const walletAddress = "0x" + nanoid(40); // 0x + 40 chars
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        pin: hashedPin,
+        walletAddress,
+        isAdmin: false, // default
+      },
     });
 
-    const token = jwt.sign({ uid: user.id }, process.env.JWT_SECRET || "dev_jwt_secret", { expiresIn: "14d" });
-    res.json({ token, user: { id: user.id, email: user.email, wallet: user.wallet }});
-  } catch (err:any) {
-    res.status(500).json({ error: err.message || "register error" });
+    return res.status(201).json({
+      message: "Signup successful!",
+      walletAddress: user.walletAddress,
+      email: user.email,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-router.post("/login", async (req, res) => {
+// Admin creation route (for first setup only)
+router.post("/create-admin", async (req, res) => {
   try {
-    const { email, wallet } = req.body;
-    if (!email || !wallet) return res.status(400).json({ error: "email & wallet required" });
+    const { email, pin, confirmPin } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.wallet.toLowerCase() !== String(wallet).toLowerCase()) {
-      return res.status(400).json({ error: "invalid credentials" });
+    if (!email || !pin || !confirmPin) {
+      return res.status(400).json({ error: "All fields are required." });
     }
 
-    const token = jwt.sign({ uid: user.id }, process.env.JWT_SECRET || "dev_jwt_secret", { expiresIn: "14d" });
-    res.json({ token, user: { id: user.id, email: user.email, wallet: user.wallet }});
-  } catch (err:any) {
-    res.status(500).json({ error: err.message || "login error" });
+    if (pin !== confirmPin) {
+      return res.status(400).json({ error: "PINs do not match." });
+    }
+
+    const hashedPin = await bcrypt.hash(pin, 10);
+    const walletAddress = "0x" + nanoid(40);
+
+    const admin = await prisma.user.create({
+      data: {
+        email,
+        pin: hashedPin,
+        walletAddress,
+        isAdmin: true,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Admin created successfully!",
+      walletAddress: admin.walletAddress,
+      email: admin.email,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
