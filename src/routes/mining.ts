@@ -1,41 +1,25 @@
-import { Router } from "express";
+ import { Router } from "express";
 
 const router = Router();
+const miningState: Record<string, { lastClaim: number }> = {};
 
-// In-memory users store (should be same instance as auth.ts)
-const users: any[] = [];
-
-// Mining cooldown tracker
-const miningCooldowns: Record<string, number> = {}; // userId -> timestamp
-
-router.post("/mine", (req, res) => {
+// Claim mining reward (0.5 MVZx max/day)
+router.post("/claim", (req, res) => {
   try {
-    const { userId } = req.body;
-    const user = users.find(u => u.id === userId);
-    if (!user) return res.status(400).json({ error: "User not found." });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
 
     const now = Date.now();
-    const lastMine = miningCooldowns[userId] || 0;
-    const elapsed = now - lastMine;
-    const oneDay = 24 * 60 * 60 * 1000;
+    const userMining = miningState[email] || { lastClaim: 0 };
+    const elapsed = now - userMining.lastClaim;
 
-    if (elapsed < oneDay) {
-      const remaining = oneDay - elapsed;
-      return res.status(400).json({
-        error: "Mining cooldown active",
-        remainingMs: remaining,
-      });
-    }
+    if (elapsed < 24 * 60 * 60 * 1000)
+      return res.status(400).json({ error: "Mining cooldown 24h not reached" });
 
-    const reward = Math.random() * 0.5; // Max 0.5 MVZx per day
-    user.balance += reward;
-    miningCooldowns[userId] = now;
+    userMining.lastClaim = now;
+    miningState[email] = userMining;
 
-    return res.json({
-      message: "Mining successful",
-      reward,
-      balance: user.balance,
-    });
+    res.json({ amount: 0.5, message: "Mining reward claimed!" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
