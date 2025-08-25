@@ -1,33 +1,26 @@
-import { Router } from "express";
-import { nanoid } from "nanoid";
+ import { Router } from "express";
 
 const router = Router();
-
 const offers: any[] = [];
 
-router.get("/offers", (req, res) => {
-  return res.json(offers);
+// List offers
+router.get("/list", (_req, res) => {
+  res.json(offers);
 });
 
-router.post("/create-offer", (req, res) => {
+// Create offer
+router.post("/create", (req, res) => {
   try {
-    const { type, price, min, max } = req.body;
-    if (!type || !price || !min || !max)
-      return res.status(400).json({ error: "All fields are required." });
+    const { type, price, min, max, email } = req.body;
+    if (!type || !price || !min || !max || !email)
+      return res.status(400).json({ error: "All fields required" });
 
-    const offer = {
-      id: nanoid(),
-      type,
-      price,
-      min,
-      max,
-    };
-
+    const offer = { id: offers.length + 1, type, price, min, max, email };
     offers.push(offer);
-    return res.json({ message: "Offer created.", offer });
+    res.json({ message: "Offer created!", offer });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
