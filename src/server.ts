@@ -2,7 +2,8 @@
 import cors from "cors";
 import dotenv from "dotenv";
 
-import games from "./routes/games"; // ✅ use plural name
+import games from "./routes/games";
+import users from "./routes/users"; // Added users route
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 
 // Routes
 app.use("/games", games); // endpoint: POST /games/spin
+app.use("/users", users); // endpoints: /users/signup, /users/login, /users/buy
 
 // Health check route
 app.get("/", (_req, res) => {
