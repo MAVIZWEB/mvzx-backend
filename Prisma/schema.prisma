@@ -1,0 +1,72 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+enum PurchaseSource { ONCHAIN FIAT MANUAL AIRDROP }
+enum RewardType { JB MC NSP CR LP CP }
+enum PositionStatus { ACTIVE COMPLETED }
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  pinHash       String
+  walletAddress String    @unique
+  referralCode  String    @unique
+  createdAt     DateTime  @default(now())
+  purchases     Purchase[]
+  positions     MatrixPosition[]
+  rewards       Reward[]
+  withdrawals   Withdrawal[]
+}
+
+model Purchase {
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  source         PurchaseSource
+  txRef          String
+  usdtAmount     Decimal       @db.Decimal(38,18)
+  ngnAmount      Decimal       @db.Decimal(38,2)
+  mvzxMinted     Decimal       @db.Decimal(38,18)
+  multiplesCount Int
+  remainderUnits Decimal       @db.Decimal(38,18)
+  mcbAmount      Decimal       @db.Decimal(38,18)
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id])
+}
+
+model MatrixPosition {
+  id           Int            @id @default(autoincrement())
+  userId       Int
+  principalId  Int?
+  stage        Int
+  parentId     Int?
+  depth        Int
+  status       PositionStatus @default(ACTIVE)
+  legsFilled   Int            @default(0)
+  tranchesPaid Int            @default(0)
+  createdAt    DateTime       @default(now())
+  user         User           @relation(fields: [userId], references: [id])
+}
+
+model Reward {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  positionId Int?
+  type       RewardType
+  stage      Int
+  legIndex   Int?
+  amountUSDT Decimal  @db.Decimal(38,18)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Withdrawal {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  currency   String
+  amount     Decimal  @db.Decimal(38,18)
+  method     String
+  details    Json
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
