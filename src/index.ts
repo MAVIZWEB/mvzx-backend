@@ -1,0 +1,10 @@
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import routes from './routes';
+const app = express();
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(bodyParser.json({ limit: '2mb' }));
+app.use('/api', routes);
+const port = Number(process.env.PORT || 10000);
+app.listen(port, () => console.log(`MVZX backend running on ${port}`));
