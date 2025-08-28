@@ -1,29 +1,29 @@
- import { Router } from "express";
+ import express from "express";
+
+// Controllers
 import * as authController from "./controllers/authController";
 import * as walletController from "./controllers/walletController";
-import * as purchaseController from "./controllers/purchaseController";
 import * as matrixController from "./controllers/matrixController";
+import * as withdrawalController from "./controllers/withdrawalController";
 
-const router = Router();
+const router = express.Router();
 
-// ===== AUTH ROUTES =====
-router.post("/signup", authController.signup);
-router.post("/login", authController.login);
+/* ----------------- AUTH ROUTES ----------------- */
+router.post("/auth/register", authController.register);
+router.post("/auth/login", authController.login);
 
-// ===== WALLET ROUTES =====
+/* ----------------- WALLET ROUTES ----------------- */
 router.get("/wallet/:userId", walletController.getWallet);
-router.post("/wallet/transfer", walletController.transfer);
-router.post("/wallet/withdraw", walletController.withdraw);
+router.post("/wallet/credit", walletController.creditWallet);
+router.post("/wallet/debit", walletController.debitWallet);
 
-// ===== PURCHASE ROUTES =====
-router.post("/purchase", purchaseController.createPurchase);
-router.get("/purchases/:userId", purchaseController.getPurchases);
+/* ----------------- MATRIX ROUTES ----------------- */
+router.get("/matrix/:userId", matrixController.getMatrix);
+router.post("/matrix/join", matrixController.joinMatrix);
+router.post("/matrix/progress", matrixController.progressMatrix);
 
-// ===== MATRIX ROUTES =====
-router.post("/matrix/position", matrixController.assignPosition);
-router.get("/matrix/user/:userId", matrixController.getUserMatrix);
-
-// ===== REWARDS ROUTES =====
-router.get("/rewards/:userId", matrixController.getUserRewards);
+/* --------------- WITHDRAWAL ROUTES --------------- */
+router.post("/withdrawal/request", withdrawalController.requestWithdrawal);
+router.get("/withdrawal/:userId", withdrawalController.getWithdrawals);
 
 export default router;
