@@ -1,14 +1,14 @@
-// backend/services/tokenService.ts
+ // backend/src/services/tokenService.ts
 import { ethers } from "ethers";
 
 /**
- * Sends BEP-20 token (MVZX or USDT) from company wallet to user wallet
- * @param tokenType "MVZX" or "USDT"
+ * Sends BEP-20 token (MVZx or USDT) from company wallet to user wallet
+ * @param tokenType "MVZx" | "USDT"
  * @param toWallet recipient address
- * @param amount amount to send (in token units, e.g., 1.5 MVZX)
+ * @param amount amount to send (in token units, e.g., 1.5 MVZx)
  */
 export const sendToken = async (
-  tokenType: "MVZX" | "USDT",
+  tokenType: "MVZx" | "USDT",
   toWallet: string,
   amount: number
 ): Promise<string> => {
@@ -17,7 +17,7 @@ export const sendToken = async (
     const wallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
 
     const tokenAddress =
-      tokenType === "MVZX"
+      tokenType === "MVZx"
         ? process.env.MVZX_TOKEN_CONTRACT
         : process.env.USDT_CONTRACT;
 
@@ -45,10 +45,10 @@ export const sendToken = async (
 };
 
 /**
- * Helper functions
+ * Helper functions — simplified 2-argument usage
  */
-export const sendMVZX = (toWallet: string, amount: number) =>
-  sendToken("MVZX", toWallet, amount);
+export const sendMVZx = (toWallet: string, amount: number) =>
+  sendToken("MVZx", toWallet, amount);
 
 export const sendUSDT = (toWallet: string, amount: number) =>
   sendToken("USDT", toWallet, amount);
