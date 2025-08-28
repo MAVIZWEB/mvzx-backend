@@ -1,27 +1,23 @@
- import { Router } from "express";
+ import express from "express";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const router = Router();
+const router = express.Router();
 
-// --- VIEW USER MATRIX STATUS ---
+// ✅ Get user's matrix progress
 router.get("/:userId", async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId);
-    const matrix = await prisma.matrix.findMany({ where: { userId } });
-    res.json({ success: true, matrix });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const { userId } = req.params;
 
-// --- VIEW ALL MATRIX STAGES ---
-router.get("/", async (req, res) => {
-  try {
-    const all = await prisma.matrix.findMany();
-    res.json({ success: true, all });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    const stages = await prisma.matrix.findMany({
+      where: { userId: Number(userId) },
+      orderBy: { stage: "asc" },
+    });
+
+    return res.json({ success: true, stages });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to fetch matrix progress" });
   }
 });
 
