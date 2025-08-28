@@ -1,19 +1,56 @@
- import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
+ // backend/controllers/purchaseController.ts
+import { Request, Response } from "express";
+import prisma from "../lib/prisma";
+import { placeInMatrix } from "../services/matrixService";
+import { sendMVZX } from "../services/tokenService";
 
-export async function myMatrix(req: Request, res: Response) {
-  try {
-    const uid = (req as any).user.id;
-    const positions = await prisma.matrixPosition.findMany({ where: { userId: uid }, orderBy: [{ stage: 'asc' }, { id: 'asc' }] });
-    const rewards = await prisma.reward.findMany({ where: { userId: uid }, orderBy: { createdAt: 'desc' } });
-    return res.json({ positions, rewards });
-  } catch (e:any) { console.error(e); return res.status(500).json({ error: e.message || 'server error' }); }
-}
+// Helper: safely get slot cost from env
+const getSlotCost = (): number => {
+  const cost = Number(process.env.SLOT_COST_NGN || "2000");
+  if (isNaN(cost) || cost <= 0) {
+    throw new Error("Invalid SLOT_COST_NGN in env");
+  }
+  return cost;
+};
 
-export async function myRewards(req: Request, res: Response) {
+// ----------------- BUY SLOT -----------------
+export const buySlot = async (req: Request, res: Response) => {
   try {
-    const uid = (req as any).user.id;
-    const rewards = await prisma.reward.findMany({ where: { userId: uid }, orderBy: { createdAt: 'desc' }});
-    return res.json(rewards);
-  } catch (e:any) { console.error(e); return res.status(500).json({ error: e.message || 'server error' }); }
-}
+    const { userId, stage } = req.body;
+    if (!userId || !stage) {
+      return res.status(400).json({ error: "userId and stage are required" });
+    }
+
+    // Get slot cost in NGN
+    const slotCostNGN = getSlotCost();
+
+    // Convert to USDT equivalent
+    const mvzxRate = Number(process.env.MVZX_USDT_RATE || "0.15");
+    const costUSDT = slotCostNGN * mvzxRate;
+
+    // Deduct MVZX tokens from user (simulate transfer)
+    await sendMVZX(userId, process.env.COMPANY_WALLET!, costUSDT);
+
+    // Place user in matrix
+    const matrixPos = await placeInMatrix(userId, stage);
+
+    // Record purchase
+    const purchase = await prisma.purchase.create({
+      data: {
+        userId,
+        stage,
+        amount: costUSDT,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `Slot purchased successfully at stage ${stage}`,
+      purchase,
+      matrixPos,
+    });
+  } catch (err: any) {
+    console.error("BuySlot error:", err);
+    res.status(500).json({ error: "Purchase failed", details: err.message });
+  }
+};
