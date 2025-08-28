@@ -1,7 +1,7 @@
  // backend/controllers/withdrawController.ts
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
-import { sendMVZX } from "../services/tokenService";
+import { sendMVZx, sendUSDT } from "../services/tokenService";
 
 const prisma = new PrismaClient();
 
@@ -10,8 +10,8 @@ export const createWithdrawal = async (req: Request, res: Response) => {
   try {
     const { userId, amount, method, destination } = req.body;
 
-    if (!userId || !amount || !method) {
-      return res.status(400).json({ error: "userId, amount, and method are required" });
+    if (!userId || !amount || !method || !destination) {
+      return res.status(400).json({ error: "userId, amount, method, and destination are required" });
     }
 
     // Find user
@@ -24,7 +24,7 @@ export const createWithdrawal = async (req: Request, res: Response) => {
     }
 
     // Deduct balance
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { balance: { decrement: amount } },
     });
@@ -35,21 +35,40 @@ export const createWithdrawal = async (req: Request, res: Response) => {
     });
 
     // Auto-process crypto withdrawals
-    if (method === "USDT" || method === "MVZX") {
+    let txHash: string | null = null;
+    if (method === "MVZx") {
       if (!user.wallet) throw new Error("User wallet not set");
-      await sendMVZX(process.env.COMPANY_WALLET!, user.wallet, amount);
+      txHash = await sendMVZx(destination, amount);
 
       await prisma.withdrawal.update({
         where: { id: withdrawal.id },
         data: { status: "completed" },
       });
+    } else if (method === "USDT") {
+      if (!user.wallet) throw new Error("User wallet not set");
+      txHash = await sendUSDT(destination, amount);
+
+      await prisma.withdrawal.update({
+        where: { id: withdrawal.id },
+        data: { status: "completed" },
+      });
+    } else if (method === "FLUTTERWAVE") {
+      // Leave pending for admin approval
+      await prisma.withdrawal.update({
+        where: { id: withdrawal.id },
+        data: { status: "pending" },
+      });
+    } else {
+      return res.status(400).json({ error: "Unsupported withdrawal method" });
     }
 
     res.json({
       success: true,
       message: `Withdrawal of ${amount} via ${method} created successfully`,
       withdrawal,
-      balance: user.balance - amount,
+      balance: updatedUser.balance,
+      txHash,
+      status: method === "FLUTTERWAVE" ? "pending" : "completed",
     });
   } catch (err: any) {
     console.error("Withdrawal error:", err);
@@ -61,6 +80,8 @@ export const createWithdrawal = async (req: Request, res: Response) => {
 export const getWithdrawals = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+
+    if (!userId) return res.status(400).json({ error: "Missing userId" });
 
     const withdrawals = await prisma.withdrawal.findMany({
       where: { userId: Number(userId) },
