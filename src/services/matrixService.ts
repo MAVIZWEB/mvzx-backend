@@ -1,20 +1,23 @@
- import { prisma } from "../lib/prisma";
+ // backend/services/matrixService.ts
+import prisma from "../lib/prisma";
 
 const P = {
-  MC: 0.15,
-  JB: 0.10,   // only stage 1
-  NSP: 0.35,
-  CR: 0.20,
-  LP: 0.10,   // +0.10 added for stage >=2
-  CP: 0.10,
+  MC: 0.15,  // Matrix Completion
+  JB: 0.10,  // Joining Bonus (stage 1 only)
+  NSP: 0.35, // Next Stage Position
+  CR: 0.20,  // Cash Reward / Referral
+  LP: 0.10,  // Leg Pool
+  CP: 0.10,  // Company Pool
 };
 
 export async function assignPositionAndDistribute(userId: number, matrixBase: number) {
+  // Get latest matrix stage for user
   let cur = await prisma.matrix.findFirst({
     where: { userId },
     orderBy: { stage: "desc" },
   });
 
+  // If user has no matrix yet → create Stage 1
   if (!cur) {
     cur = await prisma.matrix.create({
       data: { userId, stage: 1, position: 0, earnings: 0 },
@@ -22,9 +25,12 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
   }
 
   const stage = cur.stage;
+
+  // Stage-based adjustments
   const jbPct = stage === 1 ? P.JB : 0;
   const lpPct = stage === 1 ? P.LP : P.LP + P.JB;
 
+  // Compute per-leg reward
   const perLeg = {
     MC: Number((matrixBase * P.MC).toFixed(8)),
     JB: Number((matrixBase * jbPct).toFixed(8)),
@@ -34,21 +40,24 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
     CP: Number((matrixBase * P.CP).toFixed(8)),
   };
 
-  const legsToCredit = 2;
+  // Determine legs per position
+  const legsPerPosition = stage === 1 ? 2 : 10; // 2×2=2, 2×5=10
   const rewards = {
-    MC: perLeg.MC * legsToCredit,
-    JB: perLeg.JB * legsToCredit,
-    NSP: perLeg.NSP * legsToCredit,
-    CR: perLeg.CR * legsToCredit,
-    LP: perLeg.LP * legsToCredit,
-    CP: perLeg.CP * legsToCredit,
+    MC: perLeg.MC * legsPerPosition,
+    JB: perLeg.JB * legsPerPosition,
+    NSP: perLeg.NSP * legsPerPosition,
+    CR: perLeg.CR * legsPerPosition,
+    LP: perLeg.LP * legsPerPosition,
+    CP: perLeg.CP * legsPerPosition,
   };
 
+  // Update user earnings in matrix
   await prisma.matrix.update({
     where: { id: cur.id },
     data: { earnings: { increment: rewards.MC + rewards.NSP } },
   });
 
+  // Auto-create next stage if all legs filled
   let newStage = stage;
   if (stage < 20) {
     newStage = stage + 1;
@@ -57,5 +66,11 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
     });
   }
 
-  return { success: true, stage, newStage, rewards, legsFilled: legsToCredit };
+  return {
+    success: true,
+    stage,
+    newStage,
+    rewards,
+    legsFilled: legsPerPosition,
+  };
 }
