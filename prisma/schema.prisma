@@ -8,39 +8,58 @@ datasource db {
 }
 
 model User {
-  id          Int          @id @default(autoincrement())
-  email       String       @unique
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
   pin         String
-  wallet      Wallet?
-  matrix      Matrix[]
-  withdrawals Withdrawal[]  // back-relation for Prisma
-  createdAt   DateTime     @default(now())
+  wallet      String    @unique
+  balance     Float     @default(0)
+  referredBy  Int?
+  purchases   Purchase[]
+  matrices    Matrix[]
+  withdrawals Withdrawal[]
 }
 
-model Wallet {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @unique
-  balance   Float   @default(0)
-  address   String
-  user      User    @relation(fields: [userId], references: [id])
+model Purchase {
+  id       Int     @id @default(autoincrement())
+  userId   Int
+  stage    Int
+  amount   Float
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Matrix {
-  id        Int     @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   userId    Int
   stage     Int
   position  Int
-  earnings  Float   @default(0)
-  user      User    @relation(fields: [userId], references: [id])
+  earnings  Float    @default(0)
+  parentId  Int?
+  children  Int      @default(0)
+
+  user   User    @relation(fields: [userId], references: [id])
+  parent Matrix? @relation("MatrixChildren", fields: [parentId], references: [id])
+  childrenRel Matrix[] @relation("MatrixChildren")
 }
 
 model Withdrawal {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  amount      Float
-  method      String
-  destination String
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
+  id       Int     @id @default(autoincrement())
+  userId   Int
+  amount   Float
+  method   String
+  status   String
+  details  String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CompanyFund {
+  id       Int     @id @default(autoincrement())
+  userId   Int
+  stage    Int
+  amount   Float
+  type     String
+  createdAt DateTime @default(now())
 }
