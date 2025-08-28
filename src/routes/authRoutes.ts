@@ -1,49 +1,51 @@
-import { Router } from "express";
+ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { randomBytes } from "crypto";
 
 const prisma = new PrismaClient();
 const router = Router();
 
-// --- SIGNUP ---
-// User signs up with PIN, gets auto-wallet, and free 0.5 MVZx airdrop
+// Generate random wallet address
+function generateWallet() {
+  return "0x" + randomBytes(20).toString("hex");
+}
+
+// Signup route
 router.post("/signup", async (req, res) => {
   try {
-    const { email, pin, referralCode } = req.body;
+    const { pin, email, referrerId } = req.body;
+
     if (!pin || pin.length !== 4) {
       return res.status(400).json({ error: "PIN must be 4 digits" });
     }
 
-    // Auto wallet address assignment (random for demo)
-    const walletAddress = "MVZx_" + randomBytes(8).toString("hex");
+    const wallet = generateWallet();
 
-    const newUser = await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email,
         pin,
-        referralCode,
-        walletAddress,
-        balance: 0.5, // airdrop
+        wallet,
+        balance: 0.5, // free 0.5 MVZx on signup
       },
     });
 
-    res.json({ success: true, user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- LOGIN (using email + PIN) ---
-router.post("/login", async (req, res) => {
-  try {
-    const { email, pin } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.pin !== pin) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    // Save referral if referrer exists
+    if (referrerId) {
+      const refExists = await prisma.user.findUnique({ where: { id: referrerId } });
+      if (refExists) {
+        await prisma.referral.create({
+          data: {
+            referrerId,
+            referredId: user.id,
+          },
+        });
+      }
     }
+
     res.json({ success: true, user });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    res.status(500).json({ error: "Signup failed", details: err });
   }
 });
 
