@@ -1,46 +1,39 @@
-import { Router } from "express";
+ import express from "express";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const router = Router();
+const router = express.Router();
 
-// --- CHECK BALANCE ---
+// Wallet balance
 router.get("/:userId", async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ success: true, balance: user.balance });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    const { userId } = req.params;
+    const wallet = await prisma.wallet.findUnique({ where: { userId: Number(userId) } });
+    if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+    res.json({ success: true, wallet });
+  } catch (err) {
+    res.status(500).json({ error: "Balance fetch failed" });
   }
 });
 
-// --- WITHDRAW ---
-router.post("/withdraw", async (req, res) => {
+// Internal transfer
+router.post("/transfer", async (req, res) => {
   try {
-    const { userId, amount, method, destination } = req.body;
+    const { fromUserId, toUserId, amount } = req.body;
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const fromWallet = await prisma.wallet.findUnique({ where: { userId: fromUserId } });
+    const toWallet = await prisma.wallet.findUnique({ where: { userId: toUserId } });
 
-    if (amount > user.balance) {
-      return res.status(400).json({ error: "Insufficient balance" });
-    }
+    if (!fromWallet || !toWallet) return res.status(404).json({ error: "Wallet not found" });
+    if (fromWallet.balance < amount) return res.status(400).json({ error: "Insufficient funds" });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { balance: { decrement: amount } },
-    });
+    await prisma.wallet.update({ where: { id: fromWallet.id }, data: { balance: { decrement: amount } } });
+    await prisma.wallet.update({ where: { id: toWallet.id }, data: { balance: { increment: amount } } });
 
-    // Record withdrawal request
-    const wd = await prisma.withdrawal.create({
-      data: { userId, amount, method, destination, status: "pending" },
-    });
-
-    res.json({ success: true, withdrawal: wd });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Transfer failed" });
   }
 });
 
