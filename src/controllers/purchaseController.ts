@@ -1,4 +1,4 @@
-// src/controllers/purchaseController.ts
+ // src/controllers/purchaseController.ts
 import { Request, Response } from "express";
 import { assignPositionAndDistribute } from "../services/matrixService";
 import { processAffiliateReward } from "../services/affiliateRewardService";
