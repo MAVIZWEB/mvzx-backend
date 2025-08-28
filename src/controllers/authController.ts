@@ -1,51 +1,70 @@
  import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs"; // switched to bcryptjs
+import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
-import bcrypt from "bcrypt";
+import { generateWalletAddress } from "../utils/walletUtils"; // utility to generate wallet address
 
 const prisma = new PrismaClient();
 
-/* ---------------- REGISTER ---------------- */
-export const register = async (req: Request, res: Response) => {
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+
+// Signup with auto wallet + airdrop
+export const signup = async (req: Request, res: Response) => {
   try {
     const { email, pin } = req.body;
 
-    if (!email || !pin) {
-      return res.status(400).json({ error: "Email and PIN are required" });
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists" });
     }
 
     const hashedPin = await bcrypt.hash(pin, 10);
 
+    // Create user
     const user = await prisma.user.create({
-      data: { email, pin: hashedPin },
-    });
-
-    const wallet = await prisma.wallet.create({
       data: {
-        userId: user.id,
-        balance: 0.5, // Airdrop
-        address: `WALLET-${user.id}-${Date.now()}`,
+        email,
+        pin: hashedPin,
       },
     });
 
-    res.json({ user, wallet });
-  } catch (err: any) {
-    res.status(500).json({ error: "Registration failed", details: err.message });
+    // Generate wallet
+    const walletAddress = generateWalletAddress();
+    await prisma.wallet.create({
+      data: {
+        userId: user.id,
+        address: walletAddress,
+        balance: 0.5, // Airdrop 0.5 MVZX
+      },
+    });
+
+    return res.status(201).json({ message: "Signup successful", userId: user.id });
+  } catch (error) {
+    console.error("Signup error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
-/* ---------------- LOGIN ---------------- */
+// Login
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, pin } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const user = await prisma.user.findUnique({ where: { email }, include: { wallet: true } });
+    if (!user) {
+      return res.status(400).json({ error: "Invalid email or PIN" });
+    }
 
-    const valid = await bcrypt.compare(pin, user.pin);
-    if (!valid) return res.status(401).json({ error: "Invalid PIN" });
+    const isMatch = await bcrypt.compare(pin, user.pin);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid email or PIN" });
+    }
 
-    res.json({ message: "Login successful", userId: user.id });
-  } catch (err: any) {
-    res.status(500).json({ error: "Login failed", details: err.message });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+
+    return res.status(200).json({ message: "Login successful", token, wallet: user.wallet });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
