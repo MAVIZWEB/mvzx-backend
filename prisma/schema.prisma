@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
+  id        Int         @id @default(autoincrement())
+  email     String      @unique
   pin       String
   wallet    Wallet?
   matrix    Matrix[]
-  createdAt DateTime @default(now())
+  withdrawals Withdrawal[]  // <-- added back-relation
+  createdAt DateTime    @default(now())
 }
 
 model Wallet {
