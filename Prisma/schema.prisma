@@ -1,72 +1,69 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+ // prisma/schema.prisma
+datasource db {
+  provider = "postgresql" // or mysql, sqlite (depending on Render setup)
+  url      = env("DATABASE_URL")
+}
 
-enum PurchaseSource { ONCHAIN FIAT MANUAL AIRDROP }
-enum RewardType { JB MC NSP CR LP CP }
-enum PositionStatus { ACTIVE COMPLETED }
+generator client {
+  provider = "prisma-client-js"
+}
 
 model User {
-  id            Int       @id @default(autoincrement())
-  email         String    @unique
-  pinHash       String
-  walletAddress String    @unique
-  referralCode  String    @unique
-  createdAt     DateTime  @default(now())
-  purchases     Purchase[]
-  positions     MatrixPosition[]
-  rewards       Reward[]
-  withdrawals   Withdrawal[]
+  id        Int      @id @default(autoincrement())
+  email     String?  @unique
+  pin       String   // 4 digit PIN
+  wallet    String   @unique
+  balance   Float    @default(0) // token balance (MVZx)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  matrix      Matrix[]
+  referrals   Referral[] @relation("UserReferrals")
+  referredBy  Referral?  @relation("ReferralBy", fields: [referrerId], references: [id])
+  referrerId  Int?
+  transactions Transaction[]
+  withdrawals  Withdrawal[]
 }
 
-model Purchase {
-  id             Int           @id @default(autoincrement())
-  userId         Int
-  source         PurchaseSource
-  txRef          String
-  usdtAmount     Decimal       @db.Decimal(38,18)
-  ngnAmount      Decimal       @db.Decimal(38,2)
-  mvzxMinted     Decimal       @db.Decimal(38,18)
-  multiplesCount Int
-  remainderUnits Decimal       @db.Decimal(38,18)
-  mcbAmount      Decimal       @db.Decimal(38,18)
-  createdAt      DateTime      @default(now())
-  user           User          @relation(fields: [userId], references: [id])
+model Matrix {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  stage     Int
+  position  Int
+  earnings  Float    @default(0)
+  createdAt DateTime @default(now())
 }
 
-model MatrixPosition {
-  id           Int            @id @default(autoincrement())
-  userId       Int
-  principalId  Int?
-  stage        Int
-  parentId     Int?
-  depth        Int
-  status       PositionStatus @default(ACTIVE)
-  legsFilled   Int            @default(0)
-  tranchesPaid Int            @default(0)
-  createdAt    DateTime       @default(now())
-  user         User           @relation(fields: [userId], references: [id])
+model Referral {
+  id        Int      @id @default(autoincrement())
+  referrer  User     @relation("UserReferrals", fields: [referrerId], references: [id])
+  referrerId Int
+  referred  User     @relation("ReferralBy", fields: [referredId], references: [id])
+  referredId Int
+  createdAt DateTime @default(now())
 }
 
-model Reward {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  positionId Int?
-  type       RewardType
-  stage      Int
-  legIndex   Int?
-  amountUSDT Decimal  @db.Decimal(38,18)
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  amount    Float
+  currency  String   // "NGN" | "USDT" | "BANK"
+  mvzxCredited Float @default(0)
+  matrixApplied Boolean @default(false)
+  status    String   @default("pending") // "pending" | "confirmed"
+  createdAt DateTime @default(now())
 }
 
 model Withdrawal {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  currency   String
-  amount     Decimal  @db.Decimal(38,18)
-  method     String
-  details    Json
-  status     String   @default("PENDING")
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  amount    Float
+  method    String   // "NGN" | "USDT"
+  account   String   // Bank details or wallet address
+  status    String   @default("pending") // "pending" | "approved" | "rejected"
+  createdAt DateTime @default(now())
 }
