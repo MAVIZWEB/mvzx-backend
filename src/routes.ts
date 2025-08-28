@@ -1,27 +1,29 @@
- // src/routes.ts
-import { Router } from "express";
+ import { Router } from "express";
 import * as authController from "./controllers/authController";
+import * as walletController from "./controllers/walletController";
 import * as purchaseController from "./controllers/purchaseController";
 import * as matrixController from "./controllers/matrixController";
-import * as withdrawController from "./controllers/withdrawController";
 
 const router = Router();
 
-// ---- Auth ----
+// ===== AUTH ROUTES =====
 router.post("/signup", authController.signup);
-router.post("/login", authController.signup); // using signup as placeholder since login() doesn't exist
-// Remove retryAirdrops (not implemented)
+router.post("/login", authController.login);
 
-// ---- Purchases ----
-router.post("/purchase/onchain", purchaseController.purchaseOnchain); // renamed from processOnchainPurchase
-router.post("/purchase/manual", purchaseController.purchaseManual);   // renamed from manualInit
-router.post("/purchase/flutterwave", purchaseController.handleFlutterwaveWebhook); // renamed from flutterwaveWebhook
+// ===== WALLET ROUTES =====
+router.get("/wallet/:userId", walletController.getWallet);
+router.post("/wallet/transfer", walletController.transfer);
+router.post("/wallet/withdraw", walletController.withdraw);
 
-// ---- Matrix ----
-router.get("/matrix", matrixController.matrixStatus); // renamed from myMatrix
-router.get("/rewards", matrixController.rewardsStatus); // renamed from myRewards
+// ===== PURCHASE ROUTES =====
+router.post("/purchase", purchaseController.createPurchase);
+router.get("/purchases/:userId", purchaseController.getPurchases);
 
-// ---- Withdrawals ----
-router.post("/withdraw", withdrawController.requestWithdrawal); // corrected name
+// ===== MATRIX ROUTES =====
+router.post("/matrix/position", matrixController.assignPosition);
+router.get("/matrix/user/:userId", matrixController.getUserMatrix);
+
+// ===== REWARDS ROUTES =====
+router.get("/rewards/:userId", matrixController.getUserRewards);
 
 export default router;
