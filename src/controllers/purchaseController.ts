@@ -18,19 +18,36 @@ export async function purchaseMVZx(req: Request, res: Response) {
     }
 
     let result;
-    if (amount % 2000 === 0 && amount >= 2000) {
+
+    if (amount >= 2000 && amount % 2000 === 0) {
       // Matrix MLM purchase
-      const matrixBase = amount; // base in NGN or USDT equiv
+      const matrixBase = amount; // base in NGN or USDT equivalent
       result = await assignPositionAndDistribute(userId, matrixBase);
 
-      // Credit tokens equal to amount
-      await prisma.wallet.update({
+      // Update wallet balance (upsert if wallet does not exist yet)
+      await prisma.wallet.upsert({
         where: { userId },
-        data: { balance: { increment: amount } }
+        update: { balance: { increment: amount } },
+        create: {
+          userId,
+          balance: amount,
+          address: "0xTEMP_ADDRESS" // replace with actual generated wallet address
+        }
       });
     } else {
       // Affiliate-only reward
       result = await processAffiliateReward(userId, amount);
+
+      // Still credit tokens to wallet
+      await prisma.wallet.upsert({
+        where: { userId },
+        update: { balance: { increment: amount } },
+        create: {
+          userId,
+          balance: amount,
+          address: "0xTEMP_ADDRESS" // replace with actual generated wallet address
+        }
+      });
     }
 
     return res.json({ success: true, result });
