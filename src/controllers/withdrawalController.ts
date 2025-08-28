@@ -14,18 +14,23 @@ export const createWithdrawal = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "userId, amount, method, and destination are required" });
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
+    // Find user including wallet
+    const user = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+      include: { wallet: true },
+    });
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    if (!user.wallet) return res.status(400).json({ error: "User wallet not set" });
+
     // Check balance
-    if (user.balance < amount) {
+    if (user.wallet.balance < amount) {
       return res.status(400).json({ error: "Insufficient balance" });
     }
 
     // Deduct balance
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
+    const updatedWallet = await prisma.wallet.update({
+      where: { id: user.wallet.id },
       data: { balance: { decrement: amount } },
     });
 
@@ -34,20 +39,17 @@ export const createWithdrawal = async (req: Request, res: Response) => {
       data: { userId: user.id, amount, method, destination, status: "pending" },
     });
 
-    // Auto-process crypto withdrawals
     let txHash: string | null = null;
-    if (method === "MVZx") {
-      if (!user.wallet) throw new Error("User wallet not set");
-      txHash = await sendMVZx(destination, amount);
 
+    // Auto-process crypto withdrawals
+    if (method === "MVZx") {
+      txHash = await sendMVZx(destination, amount);
       await prisma.withdrawal.update({
         where: { id: withdrawal.id },
         data: { status: "completed" },
       });
     } else if (method === "USDT") {
-      if (!user.wallet) throw new Error("User wallet not set");
       txHash = await sendUSDT(destination, amount);
-
       await prisma.withdrawal.update({
         where: { id: withdrawal.id },
         data: { status: "completed" },
@@ -66,7 +68,7 @@ export const createWithdrawal = async (req: Request, res: Response) => {
       success: true,
       message: `Withdrawal of ${amount} via ${method} created successfully`,
       withdrawal,
-      balance: updatedUser.balance,
+      balance: updatedWallet.balance,
       txHash,
       status: method === "FLUTTERWAVE" ? "pending" : "completed",
     });
