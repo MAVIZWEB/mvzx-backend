@@ -1,41 +1,58 @@
  import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { v4 as uuidv4 } from "uuid";
+import { randomBytes } from "crypto";
 
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// ✅ Signup route (with free 0.5 MVZx airdrop)
+// Signup
 router.post("/signup", async (req, res) => {
   try {
-    const { email, pin, referrerId } = req.body;
-
+    const { pin, email, referrerId } = req.body;
     if (!pin || pin.length !== 4) {
       return res.status(400).json({ error: "PIN must be 4 digits" });
     }
 
-    // create wallet
-    const walletAddress = uuidv4();
-
-    // create user
-    const newUser = await prisma.user.create({
+    const address = "MVZx_" + randomBytes(8).toString("hex");
+    const user = await prisma.user.create({
       data: {
         email,
         pin,
-        walletAddress,
-        balance: 0.5, // free signup airdrop
-        referrerId: referrerId || null,
+        wallet: { create: { address, balance: 0.5 } }, // free 0.5 airdrop
       },
+      include: { wallet: true },
     });
 
-    return res.json({
-      success: true,
-      message: "Signup successful. 0.5 MVZx airdrop credited.",
-      user: newUser,
-    });
+    // handle referral link if any
+    if (referrerId) {
+      await prisma.referral.create({
+        data: { userId: user.id, referrerId, commission: 0 },
+      });
+    }
+
+    res.json({ success: true, user });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Signup failed" });
+    res.status(500).json({ error: "Signup failed" });
+  }
+});
+
+// Login
+router.post("/login", async (req, res) => {
+  try {
+    const { pin, email } = req.body;
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { wallet: true },
+    });
+
+    if (!user || user.pin !== pin) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ error: "Login failed" });
   }
 });
 
