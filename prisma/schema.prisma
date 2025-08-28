@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
-  id        Int         @id @default(autoincrement())
-  email     String      @unique
-  pin       String
-  wallet    Wallet?
-  matrix    Matrix[]
-  withdrawals Withdrawal[]  // <-- added back-relation
-  createdAt DateTime    @default(now())
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  pin         String
+  wallet      Wallet?
+  matrix      Matrix[]
+  withdrawals Withdrawal[]  // back-relation for Prisma
+  createdAt   DateTime     @default(now())
 }
 
 model Wallet {
