@@ -1,61 +1,26 @@
- // backend/controllers/withdrawController.ts
-import { Request, Response } from "express";
-import prisma from "../lib/prisma";
-import { sendMVZX } from "../services/tokenService";
+ import { Request, Response } from "express";
+import { prisma } from "../lib/prisma";
 
-export const requestWithdrawal = async (req: Request, res: Response) => {
+export async function requestWithdrawal(req: Request, res: Response) {
   try {
-    const { userId, amount, method } = req.body;
-    if (!userId || !amount || !method) {
-      return res.status(400).json({ error: "userId, amount, and method are required" });
-    }
+    const { userId, amount, method, destination } = req.body;
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Check balance
-    if (user.balance < amount) {
+    const userWallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!userWallet || userWallet.balance < amount) {
       return res.status(400).json({ error: "Insufficient balance" });
     }
 
-    // Deduct balance
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
+    await prisma.wallet.update({
+      where: { userId },
       data: { balance: { decrement: amount } },
     });
 
-    // Create withdrawal request
     const withdrawal = await prisma.withdrawal.create({
-      data: {
-        userId,
-        amount,
-        method, // e.g., USDT, MVZX, Flutterwave bank
-        status: "pending",
-      },
+      data: { userId, amount, method, destination, status: "pending" },
     });
 
-    // Auto-process for crypto withdrawals
-    if (method === "USDT" || method === "MVZX") {
-      await sendMVZX(process.env.COMPANY_WALLET!, user.wallet, amount);
-      await prisma.withdrawal.update({
-        where: { id: withdrawal.id },
-        data: { status: "completed" },
-      });
-    }
-
-    res.json({
-      success: true,
-      message: `Withdrawal of ${amount} via ${method} requested successfully`,
-      balance: updatedUser.balance,
-    });
+    res.json({ success: true, withdrawal });
   } catch (err: any) {
-    console.error("Withdrawal error:", err);
-    res.status(500).json({ error: "Withdrawal failed", details: err.message });
+    res.status(500).json({ error: err.message });
   }
-};
+}
