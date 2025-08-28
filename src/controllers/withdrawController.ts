@@ -1,26 +1,34 @@
- import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+ import { PrismaClient } from "@prisma/client";
+import { Request, Response } from "express";
 
-export async function requestWithdrawal(req: Request, res: Response) {
+const prisma = new PrismaClient();
+
+/* ---------------- REQUEST WITHDRAWAL ---------------- */
+export const requestWithdrawal = async (req: Request, res: Response) => {
   try {
     const { userId, amount, method, destination } = req.body;
 
-    const userWallet = await prisma.wallet.findUnique({ where: { userId } });
-    if (!userWallet || userWallet.balance < amount) {
-      return res.status(400).json({ error: "Insufficient balance" });
-    }
-
-    await prisma.wallet.update({
-      where: { userId },
-      data: { balance: { decrement: amount } },
-    });
-
     const withdrawal = await prisma.withdrawal.create({
-      data: { userId, amount, method, destination, status: "pending" },
+      data: { userId, amount, method, destination },
     });
 
-    res.json({ success: true, withdrawal });
+    res.json(withdrawal);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to request withdrawal", details: err.message });
   }
-}
+};
+
+/* ---------------- GET WITHDRAWALS ---------------- */
+export const getWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    const withdrawals = await prisma.withdrawal.findMany({
+      where: { userId: Number(userId) },
+    });
+
+    res.json(withdrawals);
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to fetch withdrawals", details: err.message });
+  }
+};
