@@ -1,80 +1,44 @@
- // backend/controllers/authController.ts
+ // src/controllers/authController.ts
 import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import prisma from "../lib/prisma";
-import { airdropMVZX } from "../services/airdropService";
+import { PrismaClient } from "@prisma/client";
+import { createWalletForUser } from "../services/walletService";
 
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
+const prisma = new PrismaClient();
 
-// ----------------- SIGNUP -----------------
-export const signup = async (req: Request, res: Response) => {
+/**
+ * User Signup
+ * - 4 digit PIN is mandatory
+ * - Email optional (for recovery)
+ * - Wallet auto-created & credited with 0.5 MVZx
+ */
+export async function signup(req: Request, res: Response) {
   try {
-    const { email, pin } = req.body;
-    if (!email || !pin) {
-      return res.status(400).json({ error: "Email and PIN are required" });
+    const { pin, email, referredBy } = req.body;
+
+    if (!pin || pin.toString().length !== 4) {
+      return res.status(400).json({ success: false, message: "4-digit PIN required" });
     }
 
-    // Hash pin with salt
-    const hashedPin = await bcrypt.hash(
-      pin + (process.env.PIN_SALT || ""),
-      10
-    );
-
-    // Create user in DB
+    // Create user
     const user = await prisma.user.create({
       data: {
-        email,
-        pin: hashedPin,
-      },
+        pin: pin.toString(),
+        email: email || null,
+        referredBy: referredBy || null
+      }
     });
 
-    // Airdrop 0.5 MVZX on signup
-    await airdropMVZX(user.id, "0.5");
+    // Create wallet & airdrop
+    const wallet = await createWalletForUser(user.id);
 
-    // Generate token
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
-
-    res.json({ token, user });
+    return res.json({
+      success: true,
+      message: "Signup successful. Wallet created with 0.5 MVZx airdrop.",
+      user,
+      wallet
+    });
   } catch (err: any) {
     console.error("Signup error:", err);
-    res.status(500).json({ error: "Signup failed" });
+    return res.status(500).json({ success: false, message: err.message });
   }
-};
-
-// ----------------- LOGIN -----------------
-export const login = async (req: Request, res: Response) => {
-  try {
-    const { email, pin } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    if (!user) return res.status(400).json({ error: "Invalid credentials" });
-
-    const match = await bcrypt.compare(
-      pin + (process.env.PIN_SALT || ""),
-      user.pin
-    );
-    if (!match) return res.status(400).json({ error: "Invalid credentials" });
-
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
-
-    res.json({ token, user });
-  } catch (err: any) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Login failed" });
-  }
-};
-
-// ----------------- OPTIONAL: RETRY AIRDROPS -----------------
-export const retryAirdrops = async (req: Request, res: Response) => {
-  try {
-    const users = await prisma.user.findMany();
-    for (const u of users) {
-      await airdropMVZX(u.id, "0.5");
-    }
-    res.json({ success: true, count: users.length });
-  } catch (err: any) {
-    console.error("Retry airdrops error:", err);
-    res.status(500).json({ error: "Retry airdrops failed" });
-  }
-};
+}
