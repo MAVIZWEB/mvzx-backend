@@ -1,67 +1,45 @@
- datasource db {
+ generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String?  @unique
-  pin        String
-  wallet     Wallet?
-  referrals  Referral[] 
-  matrices   Matrix[]
-  purchases  Purchase[]
-  createdAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  pin       String
+  wallet    Wallet?
+  matrix    Matrix[]
+  createdAt DateTime @default(now())
 }
 
 model Wallet {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @unique
-  user       User     @relation(fields: [userId], references: [id])
-  address    String   @unique
-  balance    Float    @default(0)
-}
-
-model Purchase {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  amount     Float
-  currency   String   // NGN | USDT
-  txRef      String   @unique
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
-}
-
-model Referral {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  referrerId   Int
-  commission   Float    @default(0)
-  createdAt    DateTime @default(now())
+  id        Int     @id @default(autoincrement())
+  userId    Int     @unique
+  balance   Float   @default(0)
+  address   String
+  user      User    @relation(fields: [userId], references: [id])
 }
 
 model Matrix {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  stage      Int
-  position   Int
-  earnings   Float    @default(0)
-  createdAt  DateTime @default(now())
+  id        Int     @id @default(autoincrement())
+  userId    Int
+  stage     Int
+  position  Int
+  earnings  Float   @default(0)
+  user      User    @relation(fields: [userId], references: [id])
 }
 
 model Withdrawal {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  amount     Float
-  method     String   // BANK | USDT
-  details    String   // JSON string for acct no / wallet addr
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  amount      Float
+  method      String
+  destination String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
 }
