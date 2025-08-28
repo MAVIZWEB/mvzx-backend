@@ -1,46 +1,41 @@
-import { Request, Response } from 'express';
-import { verifyOnchainTx, recordOnchainPurchase, manualInitPurchase, retryPendingAirdrops } from '../services/purchaseService';
+// src/controllers/purchaseController.ts
+import { Request, Response } from "express";
+import { assignPositionAndDistribute } from "../services/matrixService";
+import { processAffiliateReward } from "../services/affiliateRewardService";
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
 
-export async function processOnchainPurchase(req: Request, res: Response) {
+export async function purchaseMVZx(req: Request, res: Response) {
   try {
-    const uid = (req as any).user.id;
-    const { txHash } = req.body;
-    if(!txHash) return res.status(400).json({ error: 'txHash required' });
-    const txData = await verifyOnchainTx(txHash);
-    if(!txData.success) return res.status(400).json({ error: 'tx invalid or insufficient' });
-    const rec = await recordOnchainPurchase(uid, txData.usdtAmount, txHash, txData.mvzxMinted, txData.multiples);
-    return res.json(rec);
-  } catch (e:any) { console.error(e); return res.status(500).json({ error: e.message || 'server error' }); }
-}
+    const { userId, amount } = req.body;
 
-export async function flutterwaveWebhook(req: Request, res: Response) {
-  try {
-    // Validate FLW signature here (omitted for brevity — implement HMAC using FLW_SECRET_KEY)
-    const event = req.body;
-    if(event && event.status === 'successful') {
-      const userId = Number(event.meta?.userId);
-      if(userId) {
-        await manualInitPurchase(userId, Number(event.amount), event.tx_ref);
-      }
+    if (!userId || !amount) {
+      return res.status(400).json({ success: false, message: "UserId and amount required" });
     }
-    return res.status(200).send('ok');
-  } catch (e:any) { console.error(e); return res.status(500).send('err'); }
-}
 
-export async function manualInit(req: Request, res: Response) {
-  try {
-    const uid = (req as any).user.id;
-    const { ngnAmount, ref, evidenceUrl } = req.body;
-    const rec = await manualInitPurchase(uid, Number(ngnAmount), String(ref), evidenceUrl);
-    return res.json(rec);
-  } catch (e:any) { console.error(e); return res.status(500).json({ error: e.message || 'server error' }); }
-}
+    if (amount < 200) {
+      return res.status(400).json({ success: false, message: "Minimum purchase is ₦200" });
+    }
 
-// admin endpoint
-export async function retryAirdrops(req: Request, res: Response) {
-  try {
-    // optionally protect by admin token in env
-    await retryPendingAirdrops();
-    return res.json({ success: true });
-  } catch (e:any) { console.error(e); return res.status(500).json({ error: e.message || 'server error' }); }
+    let result;
+    if (amount % 2000 === 0 && amount >= 2000) {
+      // Matrix MLM purchase
+      const matrixBase = amount; // base in NGN or USDT equiv
+      result = await assignPositionAndDistribute(userId, matrixBase);
+
+      // Credit tokens equal to amount
+      await prisma.wallet.update({
+        where: { userId },
+        data: { balance: { increment: amount } }
+      });
+    } else {
+      // Affiliate-only reward
+      result = await processAffiliateReward(userId, amount);
+    }
+
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    console.error("Purchase error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
 }
