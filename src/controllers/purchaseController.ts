@@ -1,58 +1,30 @@
- // src/controllers/purchaseController.ts
-import { Request, Response } from "express";
-import { assignPositionAndDistribute } from "../services/matrixService";
-import { processAffiliateReward } from "../services/affiliateRewardService";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+ import { Request, Response } from "express";
+import { prisma } from "../lib/prisma";
+import { placeInMatrix } from "../services/matrixService";
+import { transferMVZX } from "../services/tokenService";
 
-export async function purchaseMVZx(req: Request, res: Response) {
+const SLOT_COST_NGN = Number(process.env.SLOT_COST_NGN || 2000);
+const MVZX_USDT_RATE = Number(process.env.MVZX_USDT_RATE || 0.15);
+
+export const buySlot = async (req: Request, res: Response) => {
   try {
-    const { userId, amount } = req.body;
+    const { userId, stage } = req.body;
+    if (!userId || !stage) return res.status(400).json({ error: "userId and stage required" });
 
-    if (!userId || !amount) {
-      return res.status(400).json({ success: false, message: "UserId and amount required" });
-    }
+    const costUSDT = SLOT_COST_NGN * MVZX_USDT_RATE;
 
-    if (amount < 200) {
-      return res.status(400).json({ success: false, message: "Minimum purchase is ₦200" });
-    }
+    // Transfer MVZX from company wallet to user
+    await transferMVZX(process.env.COMPANY_WALLET!, userId.toString(), costUSDT);
 
-    let result;
+    // Place in matrix
+    const matrixSlot = await placeInMatrix(userId, stage);
 
-    if (amount >= 2000 && amount % 2000 === 0) {
-      // Matrix MLM purchase
-      const matrixBase = amount; // base in NGN or USDT equivalent
-      result = await assignPositionAndDistribute(userId, matrixBase);
+    // Record purchase
+    const purchase = await prisma.purchase.create({ data: { userId, stage, amount: costUSDT } });
 
-      // Update wallet balance (upsert if wallet does not exist yet)
-      await prisma.wallet.upsert({
-        where: { userId },
-        update: { balance: { increment: amount } },
-        create: {
-          userId,
-          balance: amount,
-          address: "0xTEMP_ADDRESS" // replace with actual generated wallet address
-        }
-      });
-    } else {
-      // Affiliate-only reward
-      result = await processAffiliateReward(userId, amount);
-
-      // Still credit tokens to wallet
-      await prisma.wallet.upsert({
-        where: { userId },
-        update: { balance: { increment: amount } },
-        create: {
-          userId,
-          balance: amount,
-          address: "0xTEMP_ADDRESS" // replace with actual generated wallet address
-        }
-      });
-    }
-
-    return res.json({ success: true, result });
+    res.json({ success: true, purchase, matrixSlot });
   } catch (err: any) {
-    console.error("Purchase error:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
-}
+};
