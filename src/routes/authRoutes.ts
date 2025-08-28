@@ -1,49 +1,41 @@
- import { Router } from "express";
+ import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { randomBytes } from "crypto";
+import { v4 as uuidv4 } from "uuid";
 
 const prisma = new PrismaClient();
-const router = Router();
+const router = express.Router();
 
-// --- SIGNUP ---
-// User signs up with PIN, gets auto-wallet, and free 0.5 MVZx airdrop
+// ✅ Signup route (with free 0.5 MVZx airdrop)
 router.post("/signup", async (req, res) => {
   try {
-    const { email, pin, referralCode } = req.body;
+    const { email, pin, referrerId } = req.body;
+
     if (!pin || pin.length !== 4) {
       return res.status(400).json({ error: "PIN must be 4 digits" });
     }
 
-    // Auto wallet address assignment (random for demo)
-    const walletAddress = "MVZx_" + randomBytes(8).toString("hex");
+    // create wallet
+    const walletAddress = uuidv4();
 
+    // create user
     const newUser = await prisma.user.create({
       data: {
         email,
         pin,
-        referralCode,
         walletAddress,
-        balance: 0.5, // airdrop
+        balance: 0.5, // free signup airdrop
+        referrerId: referrerId || null,
       },
     });
 
-    res.json({ success: true, user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- LOGIN (using email + PIN) ---
-router.post("/login", async (req, res) => {
-  try {
-    const { email, pin } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.pin !== pin) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-    res.json({ success: true, user });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.json({
+      success: true,
+      message: "Signup successful. 0.5 MVZx airdrop credited.",
+      user: newUser,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Signup failed" });
   }
 });
 
