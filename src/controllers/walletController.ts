@@ -1,105 +1,84 @@
-import { Request, Response } from "express";
-import prisma from "../prisma"; // <- make sure you have prisma client setup
-import { BigNumber } from "bignumber.js";
+ import { Request, Response } from "express";
+import { PrismaClient } from "@prisma/client";
+import { randomBytes } from "crypto";
 
-// Get user wallet
+const prisma = new PrismaClient();
+
+// 🔹 Utility: generate pseudo wallet address (you can switch to Web3 provider later)
+function generateWalletAddress() {
+  return "MVZX-" + randomBytes(16).toString("hex");
+}
+
+// ✅ Get wallet balance by userId
 export const getWallet = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id || req.params.userId; // fallback
+    const { userId } = req.params;
+
     const wallet = await prisma.wallet.findUnique({
-      where: { userId },
+      where: { userId: Number(userId) },
     });
 
     if (!wallet) {
       return res.status(404).json({ error: "Wallet not found" });
     }
 
-    res.json(wallet);
+    return res.json(wallet);
   } catch (error) {
-    console.error("Error fetching wallet:", error);
-    res.status(500).json({ error: "Server error" });
+    console.error("getWallet error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Transfer between users
-export const transfer = async (req: Request, res: Response) => {
+// ✅ Create wallet (auto-called at signup, but also exposed here for admin/debug)
+export const createWallet = async (userId: number) => {
+  const newWallet = await prisma.wallet.create({
+    data: {
+      userId,
+      address: generateWalletAddress(),
+      balance: 0.5, // 🎁 auto-airdrop on creation
+    },
+  });
+  return newWallet;
+};
+
+// ✅ Credit wallet
+export const creditWallet = async (req: Request, res: Response) => {
   try {
-    const senderId = (req as any).user?.id;
-    const { recipientId, amount } = req.body;
+    const { userId, amount } = req.body;
 
-    if (!recipientId || !amount) {
-      return res.status(400).json({ error: "Recipient and amount required" });
-    }
-
-    const amt = new BigNumber(amount);
-    if (amt.lte(0)) return res.status(400).json({ error: "Invalid amount" });
-
-    const senderWallet = await prisma.wallet.findUnique({ where: { userId: senderId } });
-    if (!senderWallet || new BigNumber(senderWallet.balance).lt(amt)) {
-      return res.status(400).json({ error: "Insufficient balance" });
-    }
-
-    // Transaction
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { userId: senderId },
-        data: { balance: new BigNumber(senderWallet.balance).minus(amt).toString() },
-      });
-
-      const recipientWallet = await tx.wallet.upsert({
-        where: { userId: recipientId },
-        create: { userId: recipientId, balance: amt.toString() },
-        update: { balance: { increment: amt.toNumber() } },
-      });
-
-      return recipientWallet;
+    const wallet = await prisma.wallet.update({
+      where: { userId: Number(userId) },
+      data: { balance: { increment: Number(amount) } },
     });
 
-    res.json({ message: "Transfer successful", recipient: result });
+    return res.json(wallet);
   } catch (error) {
-    console.error("Error during transfer:", error);
-    res.status(500).json({ error: "Server error" });
+    console.error("creditWallet error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Withdraw request
-export const withdraw = async (req: Request, res: Response) => {
+// ✅ Debit wallet (for withdrawals/purchases)
+export const debitWallet = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const { amount, bankDetails } = req.body;
+    const { userId, amount } = req.body;
 
-    if (!amount || !bankDetails) {
-      return res.status(400).json({ error: "Amount and bank details required" });
-    }
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId: Number(userId) },
+    });
 
-    const amt = new BigNumber(amount);
-    if (amt.lte(0)) return res.status(400).json({ error: "Invalid amount" });
-
-    const wallet = await prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet || new BigNumber(wallet.balance).lt(amt)) {
+    if (!wallet || wallet.balance < amount) {
       return res.status(400).json({ error: "Insufficient balance" });
     }
 
-    // Deduct balance + create withdrawal record
-    await prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { userId },
-        data: { balance: new BigNumber(wallet.balance).minus(amt).toString() },
-      });
-
-      await tx.withdrawal.create({
-        data: {
-          userId,
-          amount: amt.toString(),
-          bankDetails,
-          status: "PENDING",
-        },
-      });
+    const updatedWallet = await prisma.wallet.update({
+      where: { userId: Number(userId) },
+      data: { balance: { decrement: Number(amount) } },
     });
 
-    res.json({ message: "Withdrawal request submitted" });
+    return res.json(updatedWallet);
   } catch (error) {
-    console.error("Error creating withdrawal:", error);
-    res.status(500).json({ error: "Server error" });
+    console.error("debitWallet error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
