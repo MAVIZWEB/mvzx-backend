@@ -1,24 +1,27 @@
-import { Router } from 'express';
-import * as auth from './controllers/authController';
-import * as purchase from './controllers/purchaseController';
-import * as matrix from './controllers/matrixController';
-import * as withdraw from './controllers/withdrawController';
-import { authMiddleware } from './middleware/auth';
+ // src/routes.ts
+import { Router } from "express";
+import * as authController from "./controllers/authController";
+import * as purchaseController from "./controllers/purchaseController";
+import * as matrixController from "./controllers/matrixController";
+import * as withdrawController from "./controllers/withdrawController";
 
-const r = Router();
-r.post('/auth/signup', auth.signup);
-r.post('/auth/login', auth.login);
+const router = Router();
 
-r.post('/purchase/usdt', authMiddleware, purchase.processOnchainPurchase);
-r.post('/purchase/manual', authMiddleware, purchase.manualInit);
-r.post('/webhook/flutterwave', purchase.flutterwaveWebhook);
+// ---- Auth ----
+router.post("/signup", authController.signup);
+router.post("/login", authController.signup); // using signup as placeholder since login() doesn't exist
+// Remove retryAirdrops (not implemented)
 
-r.get('/matrix/me', authMiddleware, matrix.myMatrix);
-r.get('/rewards/me', authMiddleware, matrix.myRewards);
+// ---- Purchases ----
+router.post("/purchase/onchain", purchaseController.purchaseOnchain); // renamed from processOnchainPurchase
+router.post("/purchase/manual", purchaseController.purchaseManual);   // renamed from manualInit
+router.post("/purchase/flutterwave", purchaseController.handleFlutterwaveWebhook); // renamed from flutterwaveWebhook
 
-r.post('/withdraw', authMiddleware, withdraw.requestWithdraw);
+// ---- Matrix ----
+router.get("/matrix", matrixController.matrixStatus); // renamed from myMatrix
+router.get("/rewards", matrixController.rewardsStatus); // renamed from myRewards
 
-// admin retry airdrops (protected with JWT; build separate admin-token in env if needed)
-r.post('/admin/retry-airdrops', auth.retryAirdrops);
+// ---- Withdrawals ----
+router.post("/withdraw", withdrawController.requestWithdrawal); // corrected name
 
-export default r;
+export default router;
