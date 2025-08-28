@@ -1,44 +1,51 @@
- // src/controllers/authController.ts
+ import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
-import { createWalletForUser } from "../services/walletService";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
-/**
- * User Signup
- * - 4 digit PIN is mandatory
- * - Email optional (for recovery)
- * - Wallet auto-created & credited with 0.5 MVZx
- */
-export async function signup(req: Request, res: Response) {
+/* ---------------- REGISTER ---------------- */
+export const register = async (req: Request, res: Response) => {
   try {
-    const { pin, email, referredBy } = req.body;
+    const { email, pin } = req.body;
 
-    if (!pin || pin.toString().length !== 4) {
-      return res.status(400).json({ success: false, message: "4-digit PIN required" });
+    if (!email || !pin) {
+      return res.status(400).json({ error: "Email and PIN are required" });
     }
 
-    // Create user
+    const hashedPin = await bcrypt.hash(pin, 10);
+
     const user = await prisma.user.create({
+      data: { email, pin: hashedPin },
+    });
+
+    const wallet = await prisma.wallet.create({
       data: {
-        pin: pin.toString(),
-        email: email || null,
-        referredBy: referredBy || null
-      }
+        userId: user.id,
+        balance: 0.5, // Airdrop
+        address: `WALLET-${user.id}-${Date.now()}`,
+      },
     });
 
-    // Create wallet & airdrop
-    const wallet = await createWalletForUser(user.id);
-
-    return res.json({
-      success: true,
-      message: "Signup successful. Wallet created with 0.5 MVZx airdrop.",
-      user,
-      wallet
-    });
+    res.json({ user, wallet });
   } catch (err: any) {
-    console.error("Signup error:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ error: "Registration failed", details: err.message });
   }
-}
+};
+
+/* ---------------- LOGIN ---------------- */
+export const login = async (req: Request, res: Response) => {
+  try {
+    const { email, pin } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const valid = await bcrypt.compare(pin, user.pin);
+    if (!valid) return res.status(401).json({ error: "Invalid PIN" });
+
+    res.json({ message: "Login successful", userId: user.id });
+  } catch (err: any) {
+    res.status(500).json({ error: "Login failed", details: err.message });
+  }
+};
