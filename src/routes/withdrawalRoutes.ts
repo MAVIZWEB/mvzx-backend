@@ -1,8 +1,6 @@
- import { Router } from "express";
-import { requireAuth } from "../middlewares/authMiddleware";
-import { requestWithdrawal } from "../controllers/withdrawalController";
+ import { Router } from 'express';
+import * as wCtrl from '../controllers/withdrawalController';
 const r = Router();
-
-r.post("/request", requireAuth, requestWithdrawal);
-
+r.post('/ngn', wCtrl.withdrawToNgn);
+r.post('/usdt', wCtrl.withdrawToUsdt);
 export default r;
