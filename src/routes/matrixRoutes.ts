@@ -1,18 +1,6 @@
- import express from "express";
-import { PrismaClient } from "@prisma/client";
+ import { Router } from "express";
+import { getMatrix } from "../controllers/matrixController";
+const router = Router();
 
-const prisma = new PrismaClient();
-const router = express.Router();
-
-// Fetch user matrix details
-router.get("/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const matrices = await prisma.matrix.findMany({ where: { userId: Number(userId) } });
-    res.json({ success: true, matrices });
-  } catch (err) {
-    res.status(500).json({ error: "Matrix fetch failed" });
-  }
-});
-
+router.get("/:userId", getMatrix);
 export default router;
