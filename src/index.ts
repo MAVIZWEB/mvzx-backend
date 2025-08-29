@@ -1,33 +1,29 @@
- import express from "express";
+ // backend/src/index.ts
+import express from "express";
 import cors from "cors";
-import helmet from "helmet";
 import dotenv from "dotenv";
-import { apiLimiter } from "./middlewares/rateLimiter";
-import { errorHandler } from "./middlewares/errorHandler";
-
-import authRoutes from "./routes/authRoutes";
-import purchaseRoutes from "./routes/purchaseRoutes";
-import matrixRoutes from "./routes/matrixRoutes";
-import withdrawalRoutes from "./routes/withdrawalRoutes";
-import stakeRoutes from "./routes/stakeRoutes";
+import authRoutes from "./routes/auth";
+import stakeRoutes from "./routes/stake";
+import purchaseRoutes from "./routes/purchase";
+import adminRoutes from "./routes/admin";
 
 dotenv.config();
 
 const app = express();
-app.use(helmet());
+app.use(cors({ origin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "*" }));
 app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN }));
-app.use(apiLimiter);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/", (_, res) => res.json({ status: "ok", now: new Date().toISOString() }));
 
-app.use("/auth", authRoutes);
-app.use("/purchase", purchaseRoutes);
-app.use("/matrix", matrixRoutes);
-app.use("/withdrawal", withdrawalRoutes);
-app.use("/stake", stakeRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/stake", stakeRoutes);
+app.use("/api/purchase", purchaseRoutes);
+app.use("/api/admin", adminRoutes);
 
-app.use(errorHandler);
+// 404
+app.use((_, res) => res.status(404).json({ error: "Not Found" }));
 
-const port = process.env.PORT || 10000;
-app.listen(port, () => console.log(`MVZx backend listening on ${port}`));
+const PORT = Number(process.env.PORT || 10000);
+app.listen(PORT, () => {
+  console.log(`MVZX Backend listening on port ${PORT}`);
+});
