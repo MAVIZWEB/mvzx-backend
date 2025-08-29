@@ -1,93 +1,51 @@
- datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+ generator client { provider = "prisma-client-js" }
 
-generator client {
-  provider = "prisma-client-js"
-}
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
 
 model User {
-  id            Int        @id @default(autoincrement())
-  email         String?    @unique
-  pinHash       String
-  wallet        String     @unique
-  mvzxBalance   Decimal    @default(0)
-  usdtAddress   String?
-  referralCode  String     @unique @default(cuid())
-  referredById  Int?
-  referredBy    User?      @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals     User[]     @relation("UserReferrals")
-  createdAt     DateTime   @default(now())
-
-  purchases     Purchase[]
-  matrices      Matrix[]
-  stakes        Stake[]
-  withdrawals   Withdrawal[]
+  id          Int       @id @default(autoincrement())
+  email       String?   @unique
+  pinHash     String
+  wallet      Wallet?
+  matrix      Matrix[]
+  referrals   Referral[]
+  staking     Staking[]
+  createdAt   DateTime  @default(now())
 }
 
-model Purchase {
-  id             Int       @id @default(autoincrement())
-  userId         Int
-  amountNGN      Decimal
-  amountUSDT     Decimal
-  tokensMVZX     Decimal
-  method         PurchaseMethod
-  matrixEligible Boolean    @default(false)
-  txHash         String?
-  createdAt      DateTime   @default(now())
-  user           User       @relation(fields: [userId], references: [id])
-}
-
-enum PurchaseMethod {
-  USDT
-  FLW
-  BANK
+model Wallet {
+  id          Int      @id @default(autoincrement())
+  address     String   @unique
+  balanceMVZx Float    @default(0)
+  balanceUSDT Float    @default(0)
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model Matrix {
   id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id])
   userId      Int
   stage       Int
-  legsFilled  Int      @default(0)
-  creditedNGN Decimal  @default(0)   // paid now (50% per leg)
-  pendingNGN  Decimal  @default(0)   // remainder to pay on completion (admin trigger)
-  completed   Boolean  @default(false)
+  position    Int
+  earnings    Float    @default(0)
   createdAt   DateTime @default(now())
+}
+
+model Referral {
+  id          Int      @id @default(autoincrement())
+  referrerId  Int
+  refereeId   Int
+  reward      Float
+  createdAt   DateTime @default(now())
+}
+
+model Staking {
+  id          Int      @id @default(autoincrement())
   user        User     @relation(fields: [userId], references: [id])
-}
-
-model Stake {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  amount    Decimal
-  startDate DateTime  @default(now())
-  endDate   DateTime
-  claimed   Boolean   @default(false)
-  user      User      @relation(fields: [userId], references: [id])
-}
-
-model Withdrawal {
-  id          Int       @id @default(autoincrement())
   userId      Int
-  amountMVZX  Decimal
-  method      WithdrawalMethod
-  bankName    String?
-  bankAccount String?
-  usdtAddress String?
-  status      WithdrawalStatus @default(PENDING)
-  createdAt   DateTime   @default(now())
-  user        User       @relation(fields: [userId], references: [id])
-}
-
-enum WithdrawalMethod {
-  BANK
-  USDT
-}
-
-enum WithdrawalStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  PAID
+  amount      Float
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  claimed     Boolean  @default(false)
 }
