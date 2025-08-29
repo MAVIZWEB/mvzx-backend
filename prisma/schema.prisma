@@ -8,43 +8,78 @@ generator client {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  email       String?   @unique
-  pinHash     String
-  wallet      String    @unique
-  balance     Float     @default(0)
-  referralId  Int?
-  createdAt   DateTime  @default(now())
-  purchases   Purchase[]
-  matrix      Matrix[]
-  stakes      Stake[]
+  id            Int        @id @default(autoincrement())
+  email         String?    @unique
+  pinHash       String
+  wallet        String     @unique
+  mvzxBalance   Decimal    @default(0)
+  usdtAddress   String?
+  referralCode  String     @unique @default(cuid())
+  referredById  Int?
+  referredBy    User?      @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals     User[]     @relation("UserReferrals")
+  createdAt     DateTime   @default(now())
+
+  purchases     Purchase[]
+  matrices      Matrix[]
+  stakes        Stake[]
+  withdrawals   Withdrawal[]
 }
 
 model Purchase {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  amount    Float
-  currency  String
-  matrixAssigned Boolean @default(false)
-  createdAt DateTime @default(now())
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  amountNGN      Decimal
+  amountUSDT     Decimal
+  tokensMVZX     Decimal
+  method         PurchaseMethod
+  matrixEligible Boolean    @default(false)
+  txHash         String?
+  createdAt      DateTime   @default(now())
+  user           User       @relation(fields: [userId], references: [id])
+}
+
+enum PurchaseMethod {
+  USDT
+  FLW
+  BANK
 }
 
 model Matrix {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  stage     Int
-  position  Int
-  earnings  Float    @default(0)
-  legsFilled Int     @default(0)
-  completed  Boolean @default(false)
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  stage       Int
+  legsFilled  Int      @default(0)
+  creditedNGN Decimal  @default(0)   // paid now (50% per leg)
+  pendingNGN  Decimal  @default(0)   // remainder to pay on completion (admin trigger)
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model Stake {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  amount     Float
-  startDate  DateTime @default(now())
-  endDate    DateTime
-  claimed    Boolean  @default(false)
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  amount    Decimal
+  startDate DateTime  @default(now())
+  endDate   DateTime
+  claimed   Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id])
 }
+
+model Withdrawal {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  amountMVZX  Decimal
+  method      WithdrawalMethod
+  bankName    String?
+  bankAccount String?
+  usdtAddress String?
+  status      WithdrawalStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  user        User       @relation(fields: [userId], references: [id])
+}
+
+enum WithdrawalMethod { BANK USDT }
+
+enum WithdrawalStatus { PENDING APPROVED REJECTED PAID }
