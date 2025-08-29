@@ -80,6 +80,14 @@ model Withdrawal {
   user        User       @relation(fields: [userId], references: [id])
 }
 
-enum WithdrawalMethod { BANK USDT }
+enum WithdrawalMethod {
+  BANK
+  USDT
+}
 
-enum WithdrawalStatus { PENDING APPROVED REJECTED PAID }
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
