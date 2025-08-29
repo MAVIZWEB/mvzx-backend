@@ -1,33 +1,52 @@
- import express from "express";
+ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import helmet from "helmet";
 import dotenv from "dotenv";
-import { apiLimiter } from "./middlewares/rateLimiter";
-import { errorHandler } from "./middlewares/errorHandler";
+import path from "path";
 
-import authRoutes from "./routes/authRoutes";
-import purchaseRoutes from "./routes/purchaseRoutes";
-import matrixRoutes from "./routes/matrixRoutes";
-import withdrawalRoutes from "./routes/withdrawalRoutes";
-import stakeRoutes from "./routes/stakeRoutes";
-
+// Load environment variables
 dotenv.config();
 
 const app = express();
-app.use(helmet());
+
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN }));
-app.use(apiLimiter);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// Root health route (fixes Cannot GET /)
+app.get("/", (req: Request, res: Response) => {
+  res.json({
+    status: "✅ Backend is running",
+    service: "MVZX API",
+    timestamp: new Date().toISOString(),
+  });
+});
 
-app.use("/auth", authRoutes);
-app.use("/purchase", purchaseRoutes);
-app.use("/matrix", matrixRoutes);
-app.use("/withdrawal", withdrawalRoutes);
-app.use("/stake", stakeRoutes);
+// API Routes
+import authRoutes from "./routes/auth";
+import purchaseRoutes from "./routes/purchase";
+import stakeRoutes from "./routes/stake";
+import withdrawRoutes from "./routes/withdraw";
+import referralRoutes from "./routes/referral";
 
-app.use(errorHandler);
+app.use("/api/auth", authRoutes);
+app.use("/api/purchase", purchaseRoutes);
+app.use("/api/stake", stakeRoutes);
+app.use("/api/withdraw", withdrawRoutes);
+app.use("/api/referral", referralRoutes);
 
-const port = process.env.PORT || 10000;
-app.listen(port, () => console.log(`MVZx backend listening on ${port}`));
+// 404 handler for unknown routes
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+// Error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error("❌ Backend error:", err.stack);
+  res.status(500).json({ error: "Something broke on the server" });
+});
+
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
+});
