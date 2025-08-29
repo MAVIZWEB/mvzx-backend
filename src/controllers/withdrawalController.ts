@@ -1,22 +1,29 @@
- import { Request, Response } from "express";
-import { prisma } from "../prisma";
-import { transferMVZX } from "../services/tokenService";
+ import { Response } from "express";
+import prisma from "../prisma";
+import { AuthedRequest } from "../middlewares/authMiddleware";
 
-export async function withdraw(req: Request, res: Response) {
-  const { userId, amount, type, accountNumber } = req.body;
+export async function requestWithdrawal(req: AuthedRequest, res: Response) {
+  const { method, amountMVZX, bankName, bankAccount, usdtAddress } = req.body as {
+    method: "BANK" | "USDT";
+    amountMVZX: number;
+    bankName?: string; bankAccount?: string; usdtAddress?: string;
+  };
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: "User not found" });
+  if (Number(user.mvzxBalance) < amountMVZX) return res.status(400).json({ error: "Insufficient balance" });
 
-  if (user.balance < amount) return res.status(400).json({ error: "Insufficient balance" });
+  const w = await prisma.withdrawal.create({
+    data: {
+      userId: user.id,
+      amountMVZX,
+      method,
+      bankName: bankName || null,
+      bankAccount: bankAccount || null,
+      usdtAddress: usdtAddress || null
+    }
+  });
 
-  if (type === "USDT") {
-    await transferMVZX(user.wallet, amount);
-    await prisma.user.update({ where: { id: userId }, data: { balance: { decrement: amount } } });
-    return res.json({ success: true, method: "USDT", amount });
-  } else if (type === "BANK") {
-    // Create withdrawal request pending admin approval
-    await prisma.user.update({ where: { id: userId }, data: { balance: { decrement: amount } } });
-    return res.json({ success: true, method: "BANK", amount });
-  }
+  await prisma.user.update({ where: { id: user.id }, data: { mvzxBalance: { decrement: amountMVZX } } });
+  res.json({ success: true, withdrawalId: w.id, status: w.status });
 }
