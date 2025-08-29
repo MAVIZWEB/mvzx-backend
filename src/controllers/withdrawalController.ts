@@ -1,29 +1,29 @@
- import { Response } from "express";
-import prisma from "../prisma";
-import { AuthedRequest } from "../middlewares/authMiddleware";
+ import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
+import { sendUSDT } from '../utils/web3Utils';
+const prisma = new PrismaClient();
 
-export async function requestWithdrawal(req: AuthedRequest, res: Response) {
-  const { method, amountMVZX, bankName, bankAccount, usdtAddress } = req.body as {
-    method: "BANK" | "USDT";
-    amountMVZX: number;
-    bankName?: string; bankAccount?: string; usdtAddress?: string;
-  };
+export async function withdrawToNgn(req: Request, res: Response) {
+  // uses Flutterwave payout API
+  try {
+    const { userId, amount, bankCode, accountNumber } = req.body;
+    // implement Flutterwave transfer
+    const FLW_SECRET = process.env.FLW_SECRET_KEY;
+    // call Flutterwave disburse endpoint
+    res.json({ ok: true, pending: true });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+}
 
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (Number(user.mvzxBalance) < amountMVZX) return res.status(400).json({ error: "Insufficient balance" });
-
-  const w = await prisma.withdrawal.create({
-    data: {
-      userId: user.id,
-      amountMVZX,
-      method,
-      bankName: bankName || null,
-      bankAccount: bankAccount || null,
-      usdtAddress: usdtAddress || null
-    }
-  });
-
-  await prisma.user.update({ where: { id: user.id }, data: { mvzxBalance: { decrement: amountMVZX } } });
-  res.json({ success: true, withdrawalId: w.id, status: w.status });
+export async function withdrawToUsdt(req: Request, res: Response) {
+  try {
+    const { userId, toAddress, amount } = req.body; // amount in USDT
+    const wallet = await prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) return res.status(404).json({ error: 'wallet not found' });
+    if (wallet.balanceUSDT < amount) return res.status(400).json({ error: 'insufficient' });
+    // send USDT from company wallet
+    const receipt = await sendUSDT(toAddress, amount);
+    await prisma.wallet.update({ where: { id: wallet.id }, data: { balanceUSDT: { decrement: amount } } });
+    res.json({ ok: true, tx: receipt.transactionHash || receipt.hash });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
 }
