@@ -1,32 +1,32 @@
- generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
+ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model User {
   id          Int       @id @default(autoincrement())
-  email       String    @unique
-  pin         String
+  email       String?   @unique
+  pinHash     String
   wallet      String    @unique
   balance     Float     @default(0)
-  referredBy  Int?
+  referralId  Int?
+  createdAt   DateTime  @default(now())
   purchases   Purchase[]
-  matrices    Matrix[]
-  withdrawals Withdrawal[]
+  matrix      Matrix[]
+  stakes      Stake[]
 }
 
 model Purchase {
-  id       Int     @id @default(autoincrement())
-  userId   Int
-  stage    Int
-  amount   Float
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  amount    Float
+  currency  String
+  matrixAssigned Boolean @default(false)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
 }
 
 model Matrix {
@@ -35,31 +35,16 @@ model Matrix {
   stage     Int
   position  Int
   earnings  Float    @default(0)
-  parentId  Int?
-  children  Int      @default(0)
-
-  user   User    @relation(fields: [userId], references: [id])
-  parent Matrix? @relation("MatrixChildren", fields: [parentId], references: [id])
-  childrenRel Matrix[] @relation("MatrixChildren")
+  legsFilled Int     @default(0)
+  completed  Boolean @default(false)
+  createdAt DateTime @default(now())
 }
 
-model Withdrawal {
-  id       Int     @id @default(autoincrement())
-  userId   Int
-  amount   Float
-  method   String
-  status   String
-  details  String?
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-}
-
-model CompanyFund {
-  id       Int     @id @default(autoincrement())
-  userId   Int
-  stage    Int
-  amount   Float
-  type     String
-  createdAt DateTime @default(now())
+model Stake {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  amount     Float
+  startDate  DateTime @default(now())
+  endDate    DateTime
+  claimed    Boolean  @default(false)
 }
