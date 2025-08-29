@@ -1,7 +1,9 @@
  import { Router } from "express";
+import { requireAuth } from "../middlewares/authMiddleware";
 import { stakeCreate, stakeClaim } from "../controllers/stakeController";
-const router = Router();
+const r = Router();
 
-router.post("/create", stakeCreate);
-router.post("/claim", stakeClaim);
-export default router;
+r.post("/create", requireAuth, stakeCreate);
+r.post("/claim", requireAuth, stakeClaim);
+
+export default r;
