@@ -1,6 +1,8 @@
  import { Router } from "express";
-import { getMatrix } from "../controllers/matrixController";
-const router = Router();
+import { getMyMatrix, adminRelease } from "../controllers/matrixController";
+const r = Router();
 
-router.get("/:userId", getMatrix);
-export default router;
+r.get("/:userId", getMyMatrix);
+r.post("/admin/release", adminRelease); // protect in production (admin auth)
+
+export default r;
