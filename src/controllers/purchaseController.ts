@@ -1,30 +1,28 @@
  import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { placeInMatrix } from "../services/matrixService";
+import { prisma } from "../prisma";
+import { assignPositionAndDistribute } from "../services/matrixService";
 import { transferMVZX } from "../services/tokenService";
 
-const SLOT_COST_NGN = Number(process.env.SLOT_COST_NGN || 2000);
-const MVZX_USDT_RATE = Number(process.env.MVZX_USDT_RATE || 0.15);
+export async function purchase(req: Request, res: Response) {
+  const { userId, amount, currency } = req.body;
 
-export const buySlot = async (req: Request, res: Response) => {
-  try {
-    const { userId, stage } = req.body;
-    if (!userId || !stage) return res.status(400).json({ error: "userId and stage required" });
+  if (amount < 200) return res.status(400).json({ error: "Minimum 200 Naira required" });
 
-    const costUSDT = SLOT_COST_NGN * MVZX_USDT_RATE;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Transfer MVZX from company wallet to user
-    await transferMVZX(process.env.COMPANY_WALLET!, userId.toString(), costUSDT);
+  let matrixEligible = amount >= 2000 && amount % 2000 === 0;
 
-    // Place in matrix
-    const matrixSlot = await placeInMatrix(userId, stage);
+  const purchase = await prisma.purchase.create({
+    data: { userId, amount, currency, matrixAssigned: matrixEligible }
+  });
 
-    // Record purchase
-    const purchase = await prisma.purchase.create({ data: { userId, stage, amount: costUSDT } });
+  const mvzxTokens = amount * 0.001; // Example conversion
+  await transferMVZX(user.wallet, mvzxTokens);
 
-    res.json({ success: true, purchase, matrixSlot });
-  } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+  if (matrixEligible) {
+    await assignPositionAndDistribute(userId, mvzxTokens);
   }
-};
+
+  res.json({ success: true, tokens: mvzxTokens, matrixAssigned: matrixEligible });
+}
