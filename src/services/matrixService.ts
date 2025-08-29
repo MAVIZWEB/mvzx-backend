@@ -1,70 +1,74 @@
- import prisma from "../prisma";
-import { toFixed } from "../utils/numbers";
+ // backend/src/services/matrixService.ts
+import { prisma } from "../prisma";
 
-/**
- * Matrix rules per your provided spec (simplified operational model):
- * - Stage 1: 2x2; Stage 2–20: 2x5 (handled as advancing one stage after each purchase unit fills two legs)
- * - Pay 50% of per-leg reward immediately; the remaining 50% accumulates in pending and is released on stage completion via admin action.
- * - Percent definitions are per LEG base; matrixBase provided by caller is the per-unit base (e.g., 2000 NGN-equivalent or 1.5 USDT-equivalent, but we operate in NGN-equivalent for accounting clarity).
- */
-const P = { MC: 0.15, JB: 0.10, NSP: 0.35, CR: 0.20, LP: 0.10, CP: 0.10 };
+const P = {
+  MC: 0.15,
+  JB: 0.10,   // only stage 1
+  NSP: 0.35,
+  CR: 0.20,
+  LP: 0.10,   // +0.10 added for stage >=2 (effectively 20%)
+  CP: 0.10,
+};
 
-export async function ensureCurrentStage(userId: number) {
-  let cur = await prisma.matrix.findFirst({ where: { userId }, orderBy: { stage: "desc" } });
-  if (!cur) cur = await prisma.matrix.create({ data: { userId, stage: 1 } });
-  return cur;
-}
-
-export async function creditLegsAndMaybeAdvance(userId: number, matrixBaseNGN: number) {
-  const cur = await ensureCurrentStage(userId);
-  const stage = cur.stage;
-  const jbPct = stage === 1 ? P.JB : 0;
-  const lpPct = stage === 1 ? P.LP : P.LP + P.JB; // stage>=2: LP effectively 20%
-
-  const perLeg = {
-    MC: toFixed(matrixBaseNGN * P.MC),
-    JB: toFixed(matrixBaseNGN * jbPct),
-    NSP: toFixed(matrixBaseNGN * P.NSP),
-    CR: toFixed(matrixBaseNGN * P.CR),
-    LP: toFixed(matrixBaseNGN * lpPct),
-    CP: toFixed(matrixBaseNGN * P.CP)
-  };
-
-  const legs = 2; // each eligible purchase fills 2 legs (as per your simplified flow)
-  const total = Object.values(perLeg).reduce((a, b) => a + b, 0) * legs;
-  const half = total / 2;
-
-  const updated = await prisma.matrix.update({
-    where: { id: cur.id },
-    data: {
-      legsFilled: { increment: legs },
-      creditedNGN: { increment: half }, // pay half now
-      pendingNGN: { increment: total - half } // pay rest on completion by admin
+export async function assignPositionAndDistribute(userId: number, units: number, slotCostNGN: number) {
+  // units = number of slots purchased (each slot is slotCostNGN)
+  // For each unit, create or increment matrix
+  const results: any[] = [];
+  for (let i = 0; i < units; i++) {
+    // get latest matrix for user
+    let cur = await prisma.matrix.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
+    if (!cur) {
+      cur = await prisma.matrix.create({ data: { userId, stage: 1 } });
     }
-  });
 
-  // Complete current stage on every 2 legs (operational simplification)
-  const nowLegs = updated.legsFilled;
-  const requiredLegs = 2; // stage completion threshold in this simplified implementation
-  let advanced = false;
+    const stage = cur.stage;
+    const jbPct = stage === 1 ? P.JB : 0;
+    const lpPct = stage === 1 ? P.LP : P.LP + P.JB;
 
-  if (!updated.completed && nowLegs >= requiredLegs) {
-    await prisma.matrix.update({ where: { id: updated.id }, data: { completed: true } });
-    if (stage < 20) {
-      await prisma.matrix.create({ data: { userId, stage: stage + 1 } });
-      advanced = true;
+    // matrixBase in NGN per unit = slotCostNGN
+    const base = Number(slotCostNGN);
+    const perLeg = {
+      MC: Number((base * P.MC).toFixed(2)),
+      JB: Number((base * jbPct).toFixed(2)),
+      NSP: Number((base * P.NSP).toFixed(2)),
+      CR: Number((base * P.CR).toFixed(2)),
+      LP: Number((base * lpPct).toFixed(2)),
+      CP: Number((base * P.CP).toFixed(2)),
+    };
+
+    // each unit fills 2 legs (2x2 or 2x5 logic simplified)
+    const legsToCredit = 2;
+
+    // For each leg, credit half immediately to creditedNGN (50% per leg pay), rest to pendingNGN
+    const immediate = (perLeg.MC + perLeg.NSP) * legsToCredit / 2; // user-visible earnings immediate half-of-legs
+    const pending = (perLeg.MC + perLeg.NSP) * legsToCredit / 2;
+
+    // update matrix record
+    await prisma.matrix.update({
+      where: { id: cur.id },
+      data: {
+        legsFilled: { increment: legsToCredit },
+        creditedNGN: { increment: immediate },
+        pendingNGN: { increment: pending },
+      }
+    });
+
+    // if legsFilled >= threshold (for stage completion) => complete stage and create next stage
+    const updated = await prisma.matrix.findUnique({ where: { id: cur.id } });
+    const legs = updated?.legsFilled || 0;
+    const completeThreshold = stage === 1 ? 2 : 10; // 2x2 => 2 legs, 2x5 => 10 legs
+    let newStage = stage;
+    if (legs >= completeThreshold && !updated?.completed) {
+      // mark completed, create next stage if <20
+      await prisma.matrix.update({ where: { id: cur.id }, data: { completed: true } });
+      if (stage < 20) {
+        newStage = stage + 1;
+        await prisma.matrix.create({ data: { userId, stage: newStage } });
+      }
+      // Admin dashboard should pick up pendingNGN for lump-sum payment
     }
+
+    results.push({ unit: i + 1, stage, newStage, immediate, pending, perLeg });
   }
-
-  return { perLeg, total, halfPaidNow: half, advanced, stage };
-}
-
-export async function adminReleasePending(userId: number, stage: number) {
-  const m = await prisma.matrix.findFirst({ where: { userId, stage } });
-  if (!m) throw new Error("Stage not found");
-  const pending = Number(m.pendingNGN);
-  if (pending <= 0) return { released: 0 };
-  await prisma.matrix.update({ where: { id: m.id }, data: { pendingNGN: 0 } });
-  await prisma.user.update({ where: { id: userId }, data: { mvzxBalance: { increment: pending } } });
-  return { released: pending };
+  return results;
 }
