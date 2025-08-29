@@ -1,37 +1,24 @@
  import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { createWallet } from "../services/tokenService";
-import { hashPin } from "../lib/crypto";
+import { prisma } from "../prisma";
+import { hashPin } from "../utils/hashPin";
+import { transferMVZX } from "../services/tokenService";
 
-export const signup = async (req: Request, res: Response) => {
-  try {
-    const { email, pin, referralId } = req.body;
-    if (!email || !pin || pin.length !== 4) {
-      return res.status(400).json({ error: "Email and 4-digit PIN required" });
-    }
+export async function signup(req: Request, res: Response) {
+  const { email, pin, referralId } = req.body;
+  const pinHash = hashPin(pin, process.env.PIN_SALT!);
 
-    const wallet = await createWallet();
+  // Generate wallet using ethers.js
+  const { ethers } = await import("ethers");
+  const provider = new ethers.JsonRpcProvider(process.env.BNB_RPC_URL);
+  const wallet = ethers.Wallet.createRandom();
+  const walletAddress = wallet.address;
 
-    const hashedPin = hashPin(pin);
+  const user = await prisma.user.create({
+    data: { email, pinHash, wallet: walletAddress, referralId }
+  });
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        pin: hashedPin,
-        wallet,
-        referredBy: referralId,
-      },
-    });
+  // Send AIRDROP 0.5 MVZx
+  await transferMVZX(walletAddress, 0.5);
 
-    // Signup airdrop 0.5 MVZX
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { balance: { increment: 0.5 } },
-    });
-
-    res.json({ success: true, user });
-  } catch (err: any) {
-    console.error("Signup error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
+  res.json({ success: true, wallet: walletAddress, airdrop: 0.5 });
+}
