@@ -1,48 +1,45 @@
- import { Request, Response } from "express";
-import prisma from "../prisma";
-import { hashPin, verifyPin } from "../utils/hashPin";
-import { env } from "../utils/env";
-import jwt from "jsonwebtoken";
-import { transferMVZX } from "../services/tokenService";
+ import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
+import { sign } from '../utils/jwt';
+import { createWallet } from '../utils/web3Utils';
+
+const prisma = new PrismaClient();
+const SALT = process.env.PIN_SALT || 'amabeth 41';
 
 export async function signup(req: Request, res: Response) {
-  const { email, pin, ref } = req.body as { email?: string; pin: string; ref?: string };
-  if (!pin || pin.length !== 4) return res.status(400).json({ error: "PIN must be 4 digits" });
+  try {
+    const { email, pin, referrer } = req.body;
+    if (!pin || String(pin).length !== 4) return res.status(400).json({ error: 'PIN must be 4 digits' });
+    const hash = await bcrypt.hash(pin + SALT, 12);
+    const user = await prisma.user.create({ data: { email, pinHash: hash } });
 
-  const pinHash = hashPin(pin);
+    // create wallet
+    const w = await createWallet();
+    await prisma.wallet.create({ data: { address: w.address, userId: user.id, balanceMVZx: 0 } });
 
-  // Generate EVM wallet address for the user (off-chain; user controls via future KMS if needed)
-  const { ethers } = await import("ethers");
-  const wallet = ethers.Wallet.createRandom();
+    // credit free 0.5 MVZx tokens (send on-chain)
+    await prisma.wallet.update({ where: { userId: user.id }, data: { balanceMVZx: { increment: 0.5 } } });
 
-  // Link referrer if provided
-  let referredById: number | undefined;
-  if (ref) {
-    const refUser = await prisma.user.findFirst({ where: { referralCode: ref } });
-    if (refUser) referredById = refUser.id;
-  }
-
-  const user = await prisma.user.create({
-    data: {
-      email: email || null,
-      pinHash,
-      wallet: wallet.address,
-      referredById
+    // optional referral
+    if (referrer) {
+      await prisma.referral.create({ data: { referrerId: Number(referrer), refereeId: user.id, reward: 0 } });
     }
-  });
 
-  // AIRDROP 0.5 MVZx
-  await transferMVZX(user.wallet, 0.5);
-
-  const token = jwt.sign({ id: user.id }, env.JWT_SECRET, { expiresIn: "7d" });
-  res.json({ success: true, token, user: { id: user.id, wallet: user.wallet, referralCode: user.referralCode }, airdrop: 0.5 });
+    const token = sign({ uid: user.id });
+    res.json({ token, userId: user.id, walletAddress: w.address });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
 }
 
 export async function login(req: Request, res: Response) {
-  const { email, pin } = req.body as { email?: string; pin: string };
-  const user = await prisma.user.findFirst({ where: { email: email || undefined } });
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (!verifyPin(pin, user.pinHash)) return res.status(401).json({ error: "Invalid PIN" });
-  const token = jwt.sign({ id: user.id }, env.JWT_SECRET, { expiresIn: "7d" });
-  res.json({ success: true, token });
+  try {
+    const { email, pin } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    const ok = await bcrypt.compare(pin + SALT, user.pinHash);
+    if (!ok) return res.status(401).json({ error: 'invalid pin' });
+    const token = sign({ uid: user.id });
+    const wallet = await prisma.wallet.findUnique({ where: { userId: user.id } });
+    res.json({ token, userId: user.id, walletAddress: wallet?.address });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
 }
