@@ -1,6 +1,8 @@
  import { Router } from "express";
-import { withdraw } from "../controllers/withdrawalController";
-const router = Router();
+import { requireAuth } from "../middlewares/authMiddleware";
+import { requestWithdrawal } from "../controllers/withdrawalController";
+const r = Router();
 
-router.post("/", withdraw);
-export default router;
+r.post("/request", requireAuth, requestWithdrawal);
+
+export default r;
