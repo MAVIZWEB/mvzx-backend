@@ -1,6 +1,11 @@
  import { Router } from "express";
-import { purchase } from "../controllers/purchaseController";
-const router = Router();
+import { requireAuth } from "../middlewares/authMiddleware";
+import { initFlutterwave, verifyFlutterwave, bankDeposit, usdtPurchase } from "../controllers/purchaseController";
+const r = Router();
 
-router.post("/", purchase);
-export default router;
+r.post("/flw/init", requireAuth, initFlutterwave);
+r.post("/flw/verify", requireAuth, verifyFlutterwave);
+r.post("/bank", requireAuth, bankDeposit);
+r.post("/usdt", requireAuth, usdtPurchase);
+
+export default r;
