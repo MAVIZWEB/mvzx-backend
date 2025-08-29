@@ -1,6 +1,8 @@
  import { Router } from "express";
-import { signup } from "../controllers/authController";
-const router = Router();
+import { signup, login } from "../controllers/authController";
+const r = Router();
 
-router.post("/signup", signup);
-export default router;
+r.post("/signup", signup); // includes AIRDROP
+r.post("/login", login);
+
+export default r;
