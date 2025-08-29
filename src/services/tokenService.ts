@@ -1,54 +1,19 @@
- // backend/src/services/tokenService.ts
-import { ethers } from "ethers";
+ import { ethers } from "ethers";
 
-/**
- * Sends BEP-20 token (MVZx or USDT) from company wallet to user wallet
- * @param tokenType "MVZx" | "USDT"
- * @param toWallet recipient address
- * @param amount amount to send (in token units, e.g., 1.5 MVZx)
- */
-export const sendToken = async (
-  tokenType: "MVZx" | "USDT",
-  toWallet: string,
-  amount: number
-): Promise<string> => {
-  try {
-    const provider = new ethers.JsonRpcProvider(process.env.BNB_RPC_URL);
-    const wallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
+const provider = new ethers.JsonRpcProvider(process.env.BNB_RPC_URL);
+const wallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
+const mvzxAbi = [
+  "function transfer(address to, uint amount) public returns(bool)",
+  "function balanceOf(address owner) view returns(uint)"
+];
+const mvzxToken = new ethers.Contract(process.env.MVZX_TOKEN_CONTRACT!, mvzxAbi, wallet);
 
-    const tokenAddress =
-      tokenType === "MVZx"
-        ? process.env.MVZX_TOKEN_CONTRACT
-        : process.env.USDT_CONTRACT;
+export async function transferMVZX(to: string, amount: number) {
+  const tx = await mvzxToken.transfer(to, ethers.parseUnits(amount.toString(), 18));
+  await tx.wait();
+  return tx.hash;
+}
 
-    if (!tokenAddress) throw new Error(`${tokenType} token contract not set in env`);
-
-    const abi = [
-      "function transfer(address to, uint256 amount) public returns (bool)",
-      "function decimals() public view returns (uint8)",
-    ];
-
-    const contract = new ethers.Contract(tokenAddress, abi, wallet);
-
-    const decimals: number = await contract.decimals();
-    const adjustedAmount = ethers.parseUnits(amount.toString(), decimals);
-
-    const tx = await contract.transfer(toWallet, adjustedAmount);
-    await tx.wait();
-
-    console.log(`${tokenType} transfer completed: ${amount} → ${toWallet}`);
-    return tx.hash;
-  } catch (err: any) {
-    console.error("Token transfer failed:", err.message);
-    throw new Error(`Failed to send ${tokenType}: ${err.message}`);
-  }
-};
-
-/**
- * Helper functions — simplified 2-argument usage
- */
-export const sendMVZx = (toWallet: string, amount: number) =>
-  sendToken("MVZx", toWallet, amount);
-
-export const sendUSDT = (toWallet: string, amount: number) =>
-  sendToken("USDT", toWallet, amount);
+export async function getMVZXBalance(address: string) {
+  return Number(ethers.formatUnits(await mvzxToken.balanceOf(address), 18));
+}
