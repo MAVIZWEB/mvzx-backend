@@ -1,4 +1,4 @@
-  import express from 'express';
+ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -18,15 +18,15 @@ const authenticateToken = (req: any, res: any, next: any) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    req.user = user;
+    (req as any).user = user;
     next();
   });
 };
 
 // Get user earnings
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = req.user.userId;
+    const userId = (req as any).user.userId;
 
     const earnings = await prisma.earning.findMany({
       where: { userId },
@@ -41,9 +41,9 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Withdraw earnings
-router.post('/withdraw', authenticateToken, async (req, res) => {
+router.post('/withdraw', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = req.user.userId;
+    const userId = (req as any).user.userId;
     const { amount, method, destination } = req.body;
 
     // Validate withdrawal amount
