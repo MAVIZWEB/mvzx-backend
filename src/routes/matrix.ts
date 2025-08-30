@@ -1,4 +1,4 @@
-  import express from 'express';
+ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -18,15 +18,15 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
 
 // Get user matrix data
-router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
 
     const matrices = await prisma.matrix.findMany({
       where: { userId },
@@ -35,7 +35,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
     // For simplicity, we'll use mock data for legs
     // In a real implementation, you would calculate this based on the matrix structure
-    const matrixData = matrices.map((matrix: any) => ({
+    const matrixData = matrices.map(matrix => ({
       stage: matrix.stage,
       position: matrix.position,
       earnings: matrix.earnings,
@@ -52,13 +52,13 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 });
 
 // Get matrix structure for a specific stage
-router.get('/structure/:stage', authenticateToken, async (req: express.Request, res: express.Response) => {
+router.get('/structure/:stage', authenticateToken, async (req, res) => {
   try {
     const { stage } = req.params;
     // This would return the matrix structure for the specified stage
     res.json({ 
       stage: parseInt(stage),
-      structure: '2x2', // or '2x5' for higher stages
+      structure: stage === '1' ? '2x2' : '2x5',
       maxPositions: stage === '1' ? 4 : 10 // 2x2=4, 2x5=10
     });
   } catch (error) {
