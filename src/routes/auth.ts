@@ -27,10 +27,10 @@ router.post('/signup', async (req: express.Request, res: express.Response) => {
 
     // Hash password and PIN
     const hashedPassword = await bcrypt.hash(password, 10);
-    const hashedPin = await bcrypt.hash(pin + process.env.PIN_SALT!, 10);
+    const hashedPin = await bcrypt.hash(pin + process.env.PIN_SALT, 10);
 
     // Find referrer if provided
-    let referrerId: number | undefined = undefined;
+    let referrerId = null;
     if (referrerCode) {
       const referrer = await UserModel.findByEmail(referrerCode);
       if (referrer) {
