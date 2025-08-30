@@ -7,7 +7,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -19,15 +19,15 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
 
 // Get user staking plans
-router.get('/plans', authenticateToken, async (req: express.Request, res: express.Response) => {
+router.get('/plans', authenticateToken, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
 
     const stakingPlans = await prisma.staking.findMany({
       where: { userId },
@@ -42,9 +42,9 @@ router.get('/plans', authenticateToken, async (req: express.Request, res: expres
 });
 
 // Create staking plan
-router.post('/create', authenticateToken, async (req: express.Request, res: express.Response) => {
+router.post('/create', authenticateToken, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
     const { amount, duration } = req.body;
 
     const stakingPlan = await createStakingPlan(userId, amount, duration || 150);
