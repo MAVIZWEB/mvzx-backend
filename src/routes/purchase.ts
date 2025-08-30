@@ -20,7 +20,7 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
@@ -28,8 +28,12 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
 // Purchase MVZx Tokens
 router.post('/mvzx', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const { amount, currency, paymentMethod, paymentDetails, referrerCode } = req.body;
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
 
     // Validate minimum purchase amount
     if (currency === 'NGN' && amount < 200) {
