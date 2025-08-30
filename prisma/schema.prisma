@@ -1,174 +1,141 @@
- // This is your complete database schema definition
-generator client {
-  provider = "prisma-client-js"
-}
+ -- Users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    pin VARCHAR(255) NOT NULL,
+    referrer_id INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL") // This will use your DATABASE_URL from Render
-}
+-- Wallets table
+CREATE TABLE wallets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
+    address VARCHAR(255) UNIQUE NOT NULL,
+    balance DECIMAL(20, 8) DEFAULT 0,
+    locked_balance DECIMAL(20, 8) DEFAULT 0,
+    staked_balance DECIMAL(20, 8) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-model User {
-  id          Int        @id @default(autoincrement())
-  email       String     @unique
-  phone       String
-  password    String
-  pin         String
-  referrerId  Int?
-  referrer    User?      @relation("UserReferrals", fields: [referrerId], references: [id])
-  referrals   User[]     @relation("UserReferrals")
-  wallet      Wallet?
-  purchases   Purchase[]
-  matrices    Matrix[]
-  earnings    Earning[]
-  withdrawals Withdrawal[]
-  stakings    Staking[]
-  referralRewardsReferee ReferralReward[] @relation("ReferralRewardReferee")
-  referralRewardsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
-  matrixDistributions MatrixDistribution[]
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+-- Purchases table
+CREATE TABLE purchases (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 2) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    tx_hash VARCHAR(255),
+    tx_ref VARCHAR(255),
+    flw_ref VARCHAR(255),
+    proof_image TEXT,
+    bank_name VARCHAR(255),
+    account_name VARCHAR(255),
+    account_number VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-  @@map("users")
-}
+-- Matrix table
+CREATE TABLE matrices (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    stage INTEGER NOT NULL,
+    position INTEGER DEFAULT 0,
+    earnings DECIMAL(20, 8) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, stage)
+);
 
-model Wallet {
-  id           Int      @id @default(autoincrement())
-  userId       Int      @unique
-  user         User     @relation(fields: [userId], references: [id])
-  address      String   @unique
-  balance      Decimal   @default(0)
-  lockedBalance Decimal  @default(0)
-  stakedBalance Decimal  @default(0)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+-- Matrix distributions table
+CREATE TABLE matrix_distributions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    purchase_id INTEGER NOT NULL REFERENCES purchases(id),
+    stage INTEGER NOT NULL,
+    matrix_base DECIMAL(20, 8) NOT NULL,
+    mc_reward DECIMAL(20, 8) NOT NULL,
+    jb_reward DECIMAL(20, 8) NOT NULL,
+    nsp_reward DECIMAL(20, 8) NOT NULL,
+    cr_reward DECIMAL(20, 8) NOT NULL,
+    lp_reward DECIMAL(20, 8) NOT NULL,
+    cp_reward DECIMAL(20, 8) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-  @@map("wallets")
-}
+-- Referral rewards table
+CREATE TABLE referral_rewards (
+    id SERIAL PRIMARY KEY,
+    purchaser_id INTEGER NOT NULL REFERENCES users(id),
+    referrer_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    purchaser_reward DECIMAL(20, 8) NOT NULL,
+    referrer_reward DECIMAL(20, 8) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    original_amount DECIMAL(20, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-model Purchase {
-  id             Int      @id @default(autoincrement())
-  userId         Int
-  user           User     @relation(fields: [userId], references: [id])
-  amount         Decimal
-  currency       String
-  paymentMethod  String   @map("payment_method")
-  status         String   @default("pending")
-  txHash         String?  @map("tx_hash")
-  txRef          String?  @map("tx_ref")
-  flwRef         String?  @map("flw_ref")
-  proofImage     String?  @map("proof_image")
-  bankName       String?  @map("bank_name")
-  accountName    String?  @map("account_name")
-  accountNumber  String?  @map("account_number")
-  matrixDistributions MatrixDistribution[]
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+-- Earnings table
+CREATE TABLE earnings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-  @@map("purchases")
-}
+-- Withdrawals table
+CREATE TABLE withdrawals (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    method VARCHAR(20) NOT NULL,
+    destination VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-model Matrix {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  stage       Int
-  position    Int      @default(0)
-  earnings    Decimal  @default(0)
-  matrixDistributions MatrixDistribution[]
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+-- Staking table
+CREATE TABLE stakings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    duration INTEGER NOT NULL,
+    apy DECIMAL(5, 2) NOT NULL,
+    maturity_date TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-  @@unique([userId, stage])
-  @@map("matrices")
-}
+-- Staking rewards table
+CREATE TABLE staking_rewards (
+    id SERIAL PRIMARY KEY,
+    staking_id INTEGER NOT NULL REFERENCES stakings(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    reward_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-model MatrixDistribution {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  purchaseId  Int
-  purchase    Purchase @relation(fields: [purchaseId], references: [id])
-  stage       Int
-  matrixBase  Decimal
-  mcReward    Decimal  @map("mc_reward")
-  jbReward    Decimal  @map("jb_reward")
-  nspReward   Decimal  @map("nsp_reward")
-  crReward    Decimal  @map("cr_reward")
-  lpReward    Decimal  @map("lp_reward")
-  cpReward    Decimal  @map("cp_reward")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("matrix_distributions")
-}
-
-model ReferralReward {
-  id               Int      @id @default(autoincrement())
-  purchaserId      Int
-  purchaser        User     @relation("ReferralRewardReferee", fields: [purchaserId], references: [id])
-  referrerId       Int
-  referrer         User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
-  amount           Decimal
-  purchaserReward  Decimal  @map("purchaser_reward")
-  referrerReward   Decimal  @map("referrer_reward")
-  currency         String
-  originalAmount   Decimal  @map("original_amount")
-  createdAt        DateTime @default(now()) @map("created_at")
-
-  @@map("referral_rewards")
-}
-
-model Earning {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  amount      Decimal
-  type        String
-  description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("earnings")
-}
-
-model Withdrawal {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  amount      Decimal
-  method      String
-  destination String
-  status      String   @default("pending")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("withdrawals")
-}
-
-model Staking {
-  id           Int       @id @default(autoincrement())
-  userId       Int
-  user         User      @relation(fields: [userId], references: [id])
-  amount       Decimal
-  duration     Int
-  apy          Decimal
-  maturityDate DateTime  @map("maturity_date")
-  status       String    @default("active")
-  stakingRewards StakingReward[]
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  @@map("stakings")
-}
-
-model StakingReward {
-  id         Int      @id @default(autoincrement())
-  stakingId  Int
-  staking    Staking  @relation(fields: [stakingId], references: [id])
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  amount     Decimal
-  rewardDate DateTime @map("reward_date")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@map("staking_rewards")
-}
+-- Indexes for better performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_wallets_user_id ON wallets(user_id);
+CREATE INDEX idx_purchases_user_id ON purchases(user_id);
+CREATE INDEX idx_matrices_user_id ON matrices(user_id);
+CREATE INDEX idx_matrices_stage ON matrices(stage);
+CREATE INDEX idx_matrix_distributions_user_id ON matrix_distributions(user_id);
+CREATE INDEX idx_referral_rewards_referrer_id ON referral_rewards(referrer_id);
+CREATE INDEX idx_earnings_user_id ON earnings(user_id);
+CREATE INDEX idx_withdrawals_user_id ON withdrawals(user_id);
+CREATE INDEX idx_stakings_user_id ON stakings(user_id);
+CREATE INDEX idx_staking_rewards_user_id ON staking_rewards(user_id);
