@@ -1,101 +1,63 @@
- import express from 'express';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+ import { PrismaClient } from '@prisma/client';
 
-const router = express.Router();
 const prisma = new PrismaClient();
 
-// Middleware to verify JWT token
-const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+export interface CreateUserInput {
+  email: string;
+  phone: string;
+  password: string;
+  pin: string;
+  referrerId?: number; // Make referrerId optional
+}
 
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    (req as any).user = user;
-    next();
-  });
-};
-
-// Get user dashboard data
-router.get('/dashboard', authenticateToken, async (req: express.Request, res: express.Response) => {
-  try {
-    const userId = (req as any).user.userId;
-
-    // Get user with wallet
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { wallet: true }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Get matrix data
-    const matrices = await prisma.matrix.findMany({
-      where: { userId },
-      orderBy: { stage: 'asc' }
-    });
-
-    // Get referral count
-    const referralCount = await prisma.user.count({
-      where: { referrerId: userId }
-    });
-
-    // Get total earnings
-    const earnings = await prisma.earning.aggregate({
-      where: { userId },
-      _sum: { amount: true }
-    });
-
-    // Get recent earnings
-    const recentEarnings = await prisma.earning.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
-
-    res.json({
-      totalEarnings: earnings._sum.amount || 0,
-      matrixStage: matrices.length > 0 ? matrices[matrices.length - 1].stage : 0,
-      referralCount,
-      recentEarnings
-    });
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get user profile
-router.get('/profile', authenticateToken, async (req: express.Request, res: express.Response) => {
-  try {
-    const userId = (req as any).user.userId;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+export const UserModel = {
+  async create(userData: CreateUserInput) {
+    return prisma.user.create({
+      data: {
+        email: userData.email,
+        phone: userData.phone,
+        password: userData.password,
+        pin: userData.pin,
+        referrerId: userData.referrerId, // This can be undefined
+        wallet: {
+          create: {
+            balance: 0.5, // Free 0.5 MVZx tokens
+            address: await generateWalletAddress()
+          }
+        }
+      },
       include: {
-        wallet: true,
-        matrices: true
+        wallet: true
       }
     });
+  },
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+  async findByEmail(email: string) {
+    return prisma.user.findUnique({
+      where: { email },
+      include: { wallet: true }
+    });
+  },
 
-    res.json({ user });
-  } catch (error) {
-    console.error('Profile error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  async findById(id: number) {
+    return prisma.user.findUnique({
+      where: { id },
+      include: { wallet: true }
+    });
+  },
+
+  async update(userId: number, data: any) {
+    return prisma.user.update({
+      where: { id: userId },
+      data
+    });
   }
-});
+};
 
-export default router;
+async function generateWalletAddress(): Promise<string> {
+  // Implement wallet address generation logic here
+  // This is a simplified version - in production, use proper cryptographic methods
+  const timestamp = Date.now().toString();
+  const random = Math.random().toString(36).substring(2, 15);
+  return `MVZx_${timestamp}_${random}`;
+}
