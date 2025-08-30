@@ -1,7 +1,4 @@
- // This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
+ generator client {
   provider = "prisma-client-js"
 }
 
@@ -22,16 +19,14 @@ model User {
   wallet      Wallet?
   purchases   Purchase[]
   matrices    Matrix[]
+  distributions MatrixDistribution[]
   earnings    Earning[]
   withdrawals Withdrawal[]
   stakings    Staking[]
   stakingRewards StakingReward[]
-  referralRewardsGiven ReferralReward[] @relation("ReferrerRewards")
-  referralRewardsReceived ReferralReward[] @relation("PurchaserRewards")
+  referralRewards ReferralReward[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([email])
 }
 
 model Wallet {
@@ -44,52 +39,48 @@ model Wallet {
   stakedBalance Float   @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model Purchase {
-  id             Int      @id @default(autoincrement())
-  userId         Int
-  user           User     @relation(fields: [userId], references: [id])
-  amount         Float
-  currency       String
-  paymentMethod  String
-  status         String   @default("pending")
-  txHash         String?
-  txRef          String?
-  flwRef         String?
-  proofImage     String?
-  bankName       String?
-  accountName    String?
-  accountNumber  String?
-  matrixDistributions MatrixDistribution[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([userId])
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  amount        Float
+  currency      String
+  paymentMethod String
+  status        String   @default("pending")
+  txHash        String?
+  txRef         String?
+  flwRef        String?
+  proofImage    String?
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+  distributions MatrixDistribution[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Matrix {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  stage       Int
-  position    Int      @default(0)
-  earnings    Float    @default(0)
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  stage         Int
+  position      Int      @default(0)
+  earnings      Float    @default(0)
   distributions MatrixDistribution[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([userId, stage])
-  @@index([userId])
-  @@index([stage])
 }
 
 model MatrixDistribution {
   id          Int      @id @default(autoincrement())
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+  matrixId    Int?
+  matrix      Matrix?  @relation(fields: [matrixId], references: [id])
   purchaseId  Int
   purchase    Purchase @relation(fields: [purchaseId], references: [id])
   stage       Int
@@ -101,24 +92,20 @@ model MatrixDistribution {
   lpReward    Float
   cpReward    Float
   createdAt   DateTime @default(now())
-
-  @@index([userId])
 }
 
 model ReferralReward {
   id              Int      @id @default(autoincrement())
   purchaserId     Int
-  purchaser       User     @relation("PurchaserRewards", fields: [purchaserId], references: [id])
+  purchaser       User     @relation("ReferralRewardPurchaser", fields: [purchaserId], references: [id])
   referrerId      Int
-  referrer        User     @relation("ReferrerRewards", fields: [referrerId], references: [id])
+  referrer        User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
   amount          Float
   purchaserReward Float
   referrerReward  Float
   currency        String
   originalAmount  Float
   createdAt       DateTime @default(now())
-
-  @@index([referrerId])
 }
 
 model Earning {
@@ -129,8 +116,6 @@ model Earning {
   type        String
   description String?
   createdAt   DateTime @default(now())
-
-  @@index([userId])
 }
 
 model Withdrawal {
@@ -143,8 +128,6 @@ model Withdrawal {
   status      String   @default("pending")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model Staking {
@@ -159,8 +142,6 @@ model Staking {
   rewards      StakingReward[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model StakingReward {
@@ -172,6 +153,4 @@ model StakingReward {
   amount     Float
   rewardDate DateTime
   createdAt  DateTime @default(now())
-
-  @@index([userId])
 }
