@@ -1,4 +1,4 @@
-import express from 'express';
+  import express from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -18,15 +18,15 @@ const authenticateToken = (req: any, res: any, next: any) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    req.user = user;
+    (req as any).user = user;
     next();
   });
 };
 
 // Get user matrix data
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = req.user.userId;
+    const userId = (req as any).user.userId;
 
     const matrices = await prisma.matrix.findMany({
       where: { userId },
@@ -35,7 +35,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // For simplicity, we'll use mock data for legs
     // In a real implementation, you would calculate this based on the matrix structure
-    const matrixData = matrices.map(matrix => ({
+    const matrixData = matrices.map((matrix: any) => ({
       stage: matrix.stage,
       position: matrix.position,
       earnings: matrix.earnings,
@@ -52,7 +52,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get matrix structure for a specific stage
-router.get('/structure/:stage', authenticateToken, async (req, res) => {
+router.get('/structure/:stage', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
     const { stage } = req.params;
     // This would return the matrix structure for the specified stage
