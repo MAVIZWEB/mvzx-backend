@@ -1,4 +1,4 @@
-import express from 'express';
+ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { UserModel, CreateUserInput } from '../models/User';
@@ -6,7 +6,7 @@ import { UserModel, CreateUserInput } from '../models/User';
 const router = express.Router();
 
 // Signup with Free 0.5 MVZx Tokens
-router.post('/signup', async (req, res) => {
+router.post('/signup', async (req: express.Request, res: express.Response) => {
   try {
     const { email, phone, password, pin, referrerCode } = req.body;
 
@@ -27,10 +27,10 @@ router.post('/signup', async (req, res) => {
 
     // Hash password and PIN
     const hashedPassword = await bcrypt.hash(password, 10);
-    const hashedPin = await bcrypt.hash(pin + process.env.PIN_SALT, 10);
+    const hashedPin = await bcrypt.hash(pin + process.env.PIN_SALT!, 10);
 
     // Find referrer if provided
-    let referrerId = null;
+    let referrerId: number | undefined = undefined;
     if (referrerCode) {
       const referrer = await UserModel.findByEmail(referrerCode);
       if (referrer) {
@@ -73,7 +73,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', async (req: express.Request, res: express.Response) => {
   try {
     const { email, password } = req.body;
 
