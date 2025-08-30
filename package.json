@@ -4,11 +4,13 @@
   "description": "Maviz MLM/Affiliate Backend",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev src/index.ts",
-    "build": "tsc",
+    "start": "prisma migrate deploy && node dist/index.js",
+    "dev": "prisma generate && ts-node-dev src/index.ts",
+    "build": "prisma generate && tsc",
+    "clean": "rm -rf dist",
     "migrate": "prisma migrate dev",
-    "generate": "prisma generate"
+    "db:push": "prisma db push",
+    "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^4.11.0",
