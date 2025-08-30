@@ -1,15 +1,16 @@
  {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
+    "target": "es2017",
+    "module": "commonjs",
+    "lib": ["es6"],
+    "allowJs": true,
     "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
+    "noImplicitAny": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
-    "sourceMap": true,
-    "moduleResolution": "node"
-  },
-  "include": ["src"]
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
 }
