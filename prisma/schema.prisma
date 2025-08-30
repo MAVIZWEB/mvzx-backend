@@ -8,25 +8,29 @@ datasource db {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
-  phone       String
-  password    String
-  pin         String
-  referrerId  Int?
-  referrer    User?    @relation("UserReferrals", fields: [referrerId], references: [id])
-  referrals   User[]   @relation("UserReferrals")
-  wallet      Wallet?
-  purchases   Purchase[]
-  matrices    Matrix[]
-  distributions MatrixDistribution[]
-  earnings    Earning[]
-  withdrawals Withdrawal[]
-  stakings    Staking[]
-  stakingRewards StakingReward[]
-  referralRewards ReferralReward[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  phone           String
+  password        String
+  pin             String
+  referrerId      Int?
+  referrer        User?    @relation("UserReferrer", fields: [referrerId], references: [id])
+  referrals       User[]   @relation("UserReferrer")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  wallet          Wallet?
+  purchases       Purchase[]
+  matrices        Matrix[]
+  earnings        Earning[]
+  withdrawals     Withdrawal[]
+  stakings        Staking[]
+  stakingRewards  StakingReward[]
+  referralRewards ReferralReward[] @relation("ReferralRewardPurchaser")
+  referrerRewards ReferralReward[] @relation("ReferralRewardReferrer")
+
+  @@map("users")
 }
 
 model Wallet {
@@ -39,48 +43,55 @@ model Wallet {
   stakedBalance Float   @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@map("wallets")
 }
 
 model Purchase {
-  id            Int      @id @default(autoincrement())
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  amount        Float
-  currency      String
-  paymentMethod String
-  status        String   @default("pending")
-  txHash        String?
-  txRef         String?
-  flwRef        String?
-  proofImage    String?
-  bankName      String?
-  accountName   String?
-  accountNumber String?
-  distributions MatrixDistribution[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  amount         Float
+  currency       String
+  paymentMethod  String
+  status         String   @default("pending")
+  txHash         String?
+  txRef          String?
+  flwRef         String?
+  proofImage     String?
+  bankName       String?
+  accountName    String?
+  accountNumber  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  matrixDistributions MatrixDistribution[]
+
+  @@map("purchases")
 }
 
 model Matrix {
-  id            Int      @id @default(autoincrement())
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  stage         Int
-  position      Int      @default(0)
-  earnings      Float    @default(0)
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  stage       Int
+  position    Int      @default(0)
+  earnings    Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
   distributions MatrixDistribution[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 
   @@unique([userId, stage])
+  @@map("matrices")
 }
 
 model MatrixDistribution {
   id          Int      @id @default(autoincrement())
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
-  matrixId    Int?
-  matrix      Matrix?  @relation(fields: [matrixId], references: [id])
   purchaseId  Int
   purchase    Purchase @relation(fields: [purchaseId], references: [id])
   stage       Int
@@ -92,20 +103,24 @@ model MatrixDistribution {
   lpReward    Float
   cpReward    Float
   createdAt   DateTime @default(now())
+
+  @@map("matrix_distributions")
 }
 
 model ReferralReward {
-  id              Int      @id @default(autoincrement())
-  purchaserId     Int
-  purchaser       User     @relation("ReferralRewardPurchaser", fields: [purchaserId], references: [id])
-  referrerId      Int
-  referrer        User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
-  amount          Float
-  purchaserReward Float
-  referrerReward  Float
-  currency        String
-  originalAmount  Float
-  createdAt       DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  purchaserId      Int
+  purchaser        User     @relation("ReferralRewardPurchaser", fields: [purchaserId], references: [id])
+  referrerId       Int
+  referrer         User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
+  amount           Float
+  purchaserReward  Float
+  referrerReward   Float
+  currency         String
+  originalAmount   Float
+  createdAt        DateTime @default(now())
+
+  @@map("referral_rewards")
 }
 
 model Earning {
@@ -116,6 +131,8 @@ model Earning {
   type        String
   description String?
   createdAt   DateTime @default(now())
+
+  @@map("earnings")
 }
 
 model Withdrawal {
@@ -128,6 +145,8 @@ model Withdrawal {
   status      String   @default("pending")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("withdrawals")
 }
 
 model Staking {
@@ -139,9 +158,13 @@ model Staking {
   apy          Float
   maturityDate DateTime
   status       String   @default("active")
-  rewards      StakingReward[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Relations
+  stakingRewards StakingReward[]
+
+  @@map("stakings")
 }
 
 model StakingReward {
@@ -153,4 +176,6 @@ model StakingReward {
   amount     Float
   rewardDate DateTime
   createdAt  DateTime @default(now())
+
+  @@map("staking_rewards")
 }
