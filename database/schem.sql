@@ -1,0 +1,141 @@
+-- Users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    pin VARCHAR(255) NOT NULL,
+    referrer_id INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Wallets table
+CREATE TABLE wallets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
+    address VARCHAR(255) UNIQUE NOT NULL,
+    balance DECIMAL(20, 8) DEFAULT 0,
+    locked_balance DECIMAL(20, 8) DEFAULT 0,
+    staked_balance DECIMAL(20, 8) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Purchases table
+CREATE TABLE purchases (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 2) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    tx_hash VARCHAR(255),
+    tx_ref VARCHAR(255),
+    flw_ref VARCHAR(255),
+    proof_image TEXT,
+    bank_name VARCHAR(255),
+    account_name VARCHAR(255),
+    account_number VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Matrix table
+CREATE TABLE matrices (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    stage INTEGER NOT NULL,
+    position INTEGER DEFAULT 0,
+    earnings DECIMAL(20, 8) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, stage)
+);
+
+-- Matrix distributions table
+CREATE TABLE matrix_distributions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    purchase_id INTEGER NOT NULL REFERENCES purchases(id),
+    stage INTEGER NOT NULL,
+    matrix_base DECIMAL(20, 8) NOT NULL,
+    mc_reward DECIMAL(20, 8) NOT NULL,
+    jb_reward DECIMAL(20, 8) NOT NULL,
+    nsp_reward DECIMAL(20, 8) NOT NULL,
+    cr_reward DECIMAL(20, 8) NOT NULL,
+    lp_reward DECIMAL(20, 8) NOT NULL,
+    cp_reward DECIMAL(20, 8) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Referral rewards table
+CREATE TABLE referral_rewards (
+    id SERIAL PRIMARY KEY,
+    purchaser_id INTEGER NOT NULL REFERENCES users(id),
+    referrer_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    purchaser_reward DECIMAL(20, 8) NOT NULL,
+    referrer_reward DECIMAL(20, 8) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    original_amount DECIMAL(20, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Earnings table
+CREATE TABLE earnings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Withdrawals table
+CREATE TABLE withdrawals (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    method VARCHAR(20) NOT NULL,
+    destination VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Staking table
+CREATE TABLE stakings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    duration INTEGER NOT NULL,
+    apy DECIMAL(5, 2) NOT NULL,
+    maturity_date TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Staking rewards table
+CREATE TABLE staking_rewards (
+    id SERIAL PRIMARY KEY,
+    staking_id INTEGER NOT NULL REFERENCES stakings(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount DECIMAL(20, 8) NOT NULL,
+    reward_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_wallets_user_id ON wallets(user_id);
+CREATE INDEX idx_purchases_user_id ON purchases(user_id);
+CREATE INDEX idx_matrices_user_id ON matrices(user_id);
+CREATE INDEX idx_matrices_stage ON matrices(stage);
+CREATE INDEX idx_matrix_distributions_user_id ON matrix_distributions(user_id);
+CREATE INDEX idx_referral_rewards_referrer_id ON referral_rewards(referrer_id);
+CREATE INDEX idx_earnings_user_id ON earnings(user_id);
+CREATE INDEX idx_withdrawals_user_id ON withdrawals(user_id);
+CREATE INDEX idx_stakings_user_id ON stakings(user_id);
+CREATE INDEX idx_staking_rewards_user_id ON staking_rewards(user_id);
