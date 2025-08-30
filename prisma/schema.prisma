@@ -1,0 +1,174 @@
+ // This is your complete database schema definition
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // This will use your DATABASE_URL from Render
+}
+
+model User {
+  id          Int        @id @default(autoincrement())
+  email       String     @unique
+  phone       String
+  password    String
+  pin         String
+  referrerId  Int?
+  referrer    User?      @relation("UserReferrals", fields: [referrerId], references: [id])
+  referrals   User[]     @relation("UserReferrals")
+  wallet      Wallet?
+  purchases   Purchase[]
+  matrices    Matrix[]
+  earnings    Earning[]
+  withdrawals Withdrawal[]
+  stakings    Staking[]
+  referralRewardsReferee ReferralReward[] @relation("ReferralRewardReferee")
+  referralRewardsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
+  matrixDistributions MatrixDistribution[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Wallet {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  user         User     @relation(fields: [userId], references: [id])
+  address      String   @unique
+  balance      Decimal   @default(0)
+  lockedBalance Decimal  @default(0)
+  stakedBalance Decimal  @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("wallets")
+}
+
+model Purchase {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  amount         Decimal
+  currency       String
+  paymentMethod  String   @map("payment_method")
+  status         String   @default("pending")
+  txHash         String?  @map("tx_hash")
+  txRef          String?  @map("tx_ref")
+  flwRef         String?  @map("flw_ref")
+  proofImage     String?  @map("proof_image")
+  bankName       String?  @map("bank_name")
+  accountName    String?  @map("account_name")
+  accountNumber  String?  @map("account_number")
+  matrixDistributions MatrixDistribution[]
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("purchases")
+}
+
+model Matrix {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  stage       Int
+  position    Int      @default(0)
+  earnings    Decimal  @default(0)
+  matrixDistributions MatrixDistribution[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, stage])
+  @@map("matrices")
+}
+
+model MatrixDistribution {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  purchaseId  Int
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  stage       Int
+  matrixBase  Decimal
+  mcReward    Decimal  @map("mc_reward")
+  jbReward    Decimal  @map("jb_reward")
+  nspReward   Decimal  @map("nsp_reward")
+  crReward    Decimal  @map("cr_reward")
+  lpReward    Decimal  @map("lp_reward")
+  cpReward    Decimal  @map("cp_reward")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("matrix_distributions")
+}
+
+model ReferralReward {
+  id               Int      @id @default(autoincrement())
+  purchaserId      Int
+  purchaser        User     @relation("ReferralRewardReferee", fields: [purchaserId], references: [id])
+  referrerId       Int
+  referrer         User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
+  amount           Decimal
+  purchaserReward  Decimal  @map("purchaser_reward")
+  referrerReward   Decimal  @map("referrer_reward")
+  currency         String
+  originalAmount   Decimal  @map("original_amount")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("referral_rewards")
+}
+
+model Earning {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  amount      Decimal
+  type        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("earnings")
+}
+
+model Withdrawal {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  amount      Decimal
+  method      String
+  destination String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("withdrawals")
+}
+
+model Staking {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id])
+  amount       Decimal
+  duration     Int
+  apy          Decimal
+  maturityDate DateTime  @map("maturity_date")
+  status       String    @default("active")
+  stakingRewards StakingReward[]
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("stakings")
+}
+
+model StakingReward {
+  id         Int      @id @default(autoincrement())
+  stakingId  Int
+  staking    Staking  @relation(fields: [stakingId], references: [id])
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  amount     Decimal
+  rewardDate DateTime @map("reward_date")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("staking_rewards")
+}
