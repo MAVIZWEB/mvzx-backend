@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -18,15 +18,15 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
 
 // Get withdrawal history
-router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
 
     const withdrawals = await prisma.withdrawal.findMany({
       where: { userId },
