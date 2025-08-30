@@ -1,4 +1,4 @@
-import express from 'express';
+ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
@@ -18,7 +18,7 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
@@ -26,23 +26,21 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
 // Get wallet balance
 router.get('/balance', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = (req as any).user.userId;
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const userId = req.user.userId;
 
     const wallet = await prisma.wallet.findUnique({
-      where: { userId },
-      select: { balance: true, lockedBalance: true, stakedBalance: true }
+      where: { userId }
     });
 
     if (!wallet) {
       return res.status(404).json({ error: 'Wallet not found' });
     }
 
-    res.json({
-      availableBalance: wallet.balance,
-      lockedBalance: wallet.lockedBalance,
-      stakedBalance: wallet.stakedBalance,
-      totalBalance: wallet.balance + wallet.lockedBalance + wallet.stakedBalance
-    });
+    res.json({ balance: wallet.balance });
   } catch (error) {
     console.error('Wallet balance error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -52,32 +50,52 @@ router.get('/balance', authenticateToken, async (req: express.Request, res: expr
 // Get wallet transactions
 router.get('/transactions', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = (req as any).user.userId;
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
-    // Get purchases
-    const purchases = await prisma.purchase.findMany({
-      where: { userId },
-      select: { amount: true, currency: true, createdAt: true, status: true }
-    });
+    const userId = req.user.userId;
 
-    // Get earnings
-    const earnings = await prisma.earning.findMany({
-      where: { userId },
-      select: { amount: true, type: true, description: true, createdAt: true }
-    });
+    // Get purchases, earnings, and withdrawals
+    const [purchases, earnings, withdrawals] = await Promise.all([
+      prisma.purchase.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      }),
+      prisma.earning.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      }),
+      prisma.withdrawal.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      })
+    ]);
 
-    // Get withdrawals
-    const withdrawals = await prisma.withdrawal.findMany({
-      where: { userId },
-      select: { amount: true, method: true, status: true, createdAt: true }
-    });
-
-    // Combine and sort all transactions
+    // Combine and sort transactions
     const transactions = [
-      ...purchases.map(p => ({ ...p, type: 'purchase', date: p.createdAt })),
-      ...earnings.map(e => ({ ...e, type: 'earning', date: e.createdAt })),
-      ...withdrawals.map(w => ({ ...w, type: 'withdrawal', date: w.createdAt }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      ...purchases.map((p: any) => ({
+        type: 'purchase',
+        amount: -p.amount,
+        description: `Purchase of ${p.amount} ${p.currency}`,
+        date: p.createdAt
+      })),
+      ...earnings.map((e: any) => ({
+        type: 'earning',
+        amount: e.amount,
+        description: e.description || 'Earnings',
+        date: e.createdAt
+      })),
+      ...withdrawals.map((w: any) => ({
+        type: 'withdrawal',
+        amount: -w.amount,
+        description: `Withdrawal to ${w.destination}`,
+        date: w.createdAt
+      }))
+    ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({ transactions });
   } catch (error) {
