@@ -18,7 +18,7 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
     if (err) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   });
 };
@@ -26,7 +26,11 @@ const authenticateToken = (req: express.Request, res: express.Response, next: ex
 // Get user earnings
 router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = (req as any).user.userId;
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const userId = req.user.userId;
 
     const earnings = await prisma.earning.findMany({
       where: { userId },
@@ -43,7 +47,11 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 // Withdraw earnings
 router.post('/withdraw', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
-    const userId = (req as any).user.userId;
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const userId = req.user.userId;
     const { amount, method, destination } = req.body;
 
     // Validate withdrawal amount
