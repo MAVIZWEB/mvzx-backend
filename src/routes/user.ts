@@ -1,48 +1,102 @@
- import { PrismaClient } from '@prisma/client';
+ import express from 'express';
+import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 
+const router = express.Router();
 const prisma = new PrismaClient();
 
-export interface CreateUserInput {
-  email: string;
-  phone: string;
-  password: string;
-  pin: string;
-  referrerId?: number;
-}
+// Middleware to verify JWT token
+const authenticateToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-export const UserModel = {
-  async create(userData: CreateUserInput) {
-    const data: any = {
-      email: userData.email,
-      phone: userData.phone,
-      password: userData.password,
-      pin: userData.pin,
-      wallet: {
-        create: {
-          balance: 0.5,
-          address: await generateWalletAddress()
-        }
-      }
-    };
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
 
-    // Only add referrerId if it's provided
-    if (userData.referrerId !== undefined) {
-      data.referrerId = userData.referrerId;
+  jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
     }
-
-    return prisma.user.create({
-      data,
-      include: {
-        wallet: true
-      }
-    });
-  },
-
-  // ... rest of the methods remain the same
+    req.user = user;
+    next();
+  });
 };
 
-async function generateWalletAddress(): Promise<string> {
-  const timestamp = Date.now().toString();
-  const random = Math.random().toString(36).substring(2, 15);
-  return `MVZx_${timestamp}_${random}`;
-}
+// Get user dashboard data
+router.get('/dashboard', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get user with wallet
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { wallet: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get matrix data
+    const matrices = await prisma.matrix.findMany({
+      where: { userId },
+      orderBy: { stage: 'asc' }
+    });
+
+    // Get referral count
+    const referralCount = await prisma.user.count({
+      where: { referrerId: userId }
+    });
+
+    // Get total earnings
+    const earnings = await prisma.earning.aggregate({
+      where: { userId },
+      _sum: { amount: true }
+    });
+
+    // Get recent earnings
+    const recentEarnings = await prisma.earning.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+    res.json({
+      totalEarnings: earnings._sum.amount || 0,
+      matrixStage: matrices.length > 0 ? matrices[matrices.length - 1].stage : 0,
+      referralCount,
+      recentEarnings
+    });
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user profile
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        wallet: true,
+        matrices: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add default export
+export default router;
