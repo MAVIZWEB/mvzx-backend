@@ -1,13 +1,19 @@
-import { PrismaClient } from '@prisma/client';
+ import { PrismaClient } from '@prisma/client';
 import Web3 from 'web3';
 import Flutterwave from 'flutterwave-node-v3';
 
 const prisma = new PrismaClient();
-const web3 = new Web3(process.env.BNB_RPC_URL);
-const flw = new Flutterwave(
-  process.env.FLW_PUBLIC_KEY!,
-  process.env.FLW_SECRET_KEY!
-);
+
+// Create Flutterwave instance with proper error handling
+let flw: any = null;
+try {
+  flw = new Flutterwave(
+    process.env.FLW_PUBLIC_KEY!,
+    process.env.FLW_SECRET_KEY!
+  );
+} catch (error) {
+  console.warn('Flutterwave initialization failed:', error);
+}
 
 // MVZx Token Contract ABI (simplified)
 const MVZX_ABI = [
@@ -23,7 +29,19 @@ const MVZX_ABI = [
   }
 ];
 
+// Initialize Web3 with proper error handling
+let web3: Web3 | null = null;
+try {
+  web3 = new Web3(process.env.BNB_RPC_URL || 'https://bsc-dataseed1.ninicoin.io');
+} catch (error) {
+  console.warn('Web3 initialization failed:', error);
+}
+
 export async function processUSDTOurchase(userId: number, amount: number, paymentDetails: any) {
+  if (!web3) {
+    throw new Error('Blockchain service not available');
+  }
+
   const { txHash } = paymentDetails;
   
   // Verify transaction on blockchain
@@ -60,6 +78,10 @@ export async function processUSDTOurchase(userId: number, amount: number, paymen
 }
 
 export async function processFlutterwavePurchase(userId: number, amount: number, paymentDetails: any) {
+  if (!flw) {
+    throw new Error('Payment service not available');
+  }
+
   const { txRef, flwRef } = paymentDetails;
   
   // Verify transaction with Flutterwave
