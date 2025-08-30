@@ -1,21 +1,23 @@
-import express from 'express';
+ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
 
 // Import routes
 import authRoutes from './routes/auth';
+import userRoutes from './routes/user';
 import walletRoutes from './routes/wallet';
 import purchaseRoutes from './routes/purchase';
 import matrixRoutes from './routes/matrix';
 import earningsRoutes from './routes/earnings';
+import stakingRoutes from './routes/staking';
+import withdrawalsRoutes from './routes/withdrawals';
 import adminRoutes from './routes/admin';
+import apiRoutes from './routes/index';
 
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
 
 // Rate limiting
 const limiter = rateLimit({
@@ -31,11 +33,15 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
+app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/purchase', purchaseRoutes);
 app.use('/api/matrix', matrixRoutes);
 app.use('/api/earnings', earningsRoutes);
+app.use('/api/staking', stakingRoutes);
+app.use('/api/withdrawals', withdrawalsRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check
