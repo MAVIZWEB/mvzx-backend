@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -24,8 +24,12 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 // Get user matrix data
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const userId = req.user.userId;
 
     const matrices = await prisma.matrix.findMany({
@@ -35,7 +39,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // For simplicity, we'll use mock data for legs
     // In a real implementation, you would calculate this based on the matrix structure
-    const matrixData = matrices.map(matrix => ({
+    const matrixData = matrices.map((matrix: any) => ({
       stage: matrix.stage,
       position: matrix.position,
       earnings: matrix.earnings,
@@ -52,13 +56,17 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get matrix structure for a specific stage
-router.get('/structure/:stage', authenticateToken, async (req, res) => {
+router.get('/structure/:stage', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const { stage } = req.params;
     // This would return the matrix structure for the specified stage
     res.json({ 
       stage: parseInt(stage),
-      structure: stage === '1' ? '2x2' : '2x5',
+      structure: '2x2', // or '2x5' for higher stages
       maxPositions: stage === '1' ? 4 : 10 // 2x2=4, 2x5=10
     });
   } catch (error) {
