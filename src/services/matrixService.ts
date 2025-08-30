@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // Percent definitions (per LEG base)
@@ -15,8 +15,21 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
   // matrixBase is the 'per-unit' base (e.g. 1.5 USDT or 2000 NGN equivalent)
   // Simple 2x2 logic per purchase unit:
   // - create or get user's current stage record
-  let cur = await prisma.matrix.findFirst({ where: { userId }, orderBy: { stage: "desc" } });
-  if (!cur) cur = await prisma.matrix.create({ data: { userId, stage: 1, position: 0, earnings: 0 } });
+  let cur = await prisma.matrix.findFirst({ 
+    where: { userId }, 
+    orderBy: { stage: "desc" } 
+  });
+  
+  if (!cur) {
+    cur = await prisma.matrix.create({ 
+      data: { 
+        userId, 
+        stage: 1, 
+        position: 0, 
+        earnings: 0 
+      } 
+    });
+  }
 
   const stage = cur.stage;
   const jbPct = stage === 1 ? P.JB : 0;
@@ -52,7 +65,14 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
   let newStage = stage;
   if (stage < 20) {
     newStage = stage + 1;
-    await prisma.matrix.create({ data: { userId, stage: newStage, position: 0, earnings: 0 } });
+    await prisma.matrix.create({ 
+      data: { 
+        userId, 
+        stage: newStage, 
+        position: 0, 
+        earnings: 0 
+      } 
+    });
   } else {
     // stage 20: do NOT auto recycle user; company-only reentry handled separately
   }
@@ -61,6 +81,7 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
   await prisma.matrixDistribution.create({
     data: {
       userId,
+      matrixId: cur.id,
       purchaseId,
       stage,
       matrixBase,
