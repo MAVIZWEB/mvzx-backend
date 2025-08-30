@@ -8,10 +8,8 @@
     "dev": "ts-node-dev src/index.ts",
     "build": "prisma generate && tsc",
     "migrate": "prisma migrate dev",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "prisma:reset": "prisma migrate reset"
+    "db:push": "prisma db push",
+    "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^4.11.0",
@@ -26,7 +24,7 @@
     "flutterwave-node-v3": "^1.0.7",
     "jsonwebtoken": "^9.0.0",
     "ethers": "^5.7.2",
-    "web3": "^1.8.2"
+    "web3": "^5.7.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
