@@ -3,17 +3,17 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-// Import routes
-import authRoutes from './routes/auth';
-import userRoutes from './routes/user';
-import walletRoutes from './routes/wallet';
-import purchaseRoutes from './routes/purchase';
-import matrixRoutes from './routes/matrix';
-import earningsRoutes from './routes/earnings';
-import stakingRoutes from './routes/staking';
-import withdrawalsRoutes from './routes/withdrawals';
-import adminRoutes from './routes/admin';
-import apiRoutes from './routes/index';
+// Import all route files
+import apiRoutes from './routes/index';          // API documentation
+import authRoutes from './routes/auth';          // Authentication
+import userRoutes from './routes/user';          // User management
+import walletRoutes from './routes/wallet';      // Wallet operations
+import purchaseRoutes from './routes/purchase';  // Token purchases
+import matrixRoutes from './routes/matrix';      // Matrix system
+import earningsRoutes from './routes/earnings';  // Earnings management
+import stakingRoutes from './routes/staking';    // Staking system
+import withdrawalsRoutes from './routes/withdrawals'; // Withdrawal history
+import adminRoutes from './routes/admin';        // Admin functions
 
 dotenv.config();
 
@@ -32,27 +32,33 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
-app.use('/api', apiRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/purchase', purchaseRoutes);
-app.use('/api/matrix', matrixRoutes);
-app.use('/api/earnings', earningsRoutes);
-app.use('/api/staking', stakingRoutes);
-app.use('/api/withdrawals', withdrawalsRoutes);
-app.use('/api/admin', adminRoutes);
+// Register all routes with proper prefixes
+app.use('/api', apiRoutes);          // API documentation
+app.use('/api/auth', authRoutes);    // Authentication endpoints
+app.use('/api/user', userRoutes);    // User management endpoints
+app.use('/api/wallet', walletRoutes); // Wallet endpoints
+app.use('/api/purchase', purchaseRoutes); // Purchase endpoints
+app.use('/api/matrix', matrixRoutes); // Matrix endpoints
+app.use('/api/earnings', earningsRoutes); // Earnings endpoints
+app.use('/api/staking', stakingRoutes); // Staking endpoints
+app.use('/api/withdrawals', withdrawalsRoutes); // Withdrawals endpoints
+app.use('/api/admin', adminRoutes);  // Admin endpoints
 
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Maviz MLM API is running' });
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Maviz MLM API is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`API docs: http://localhost:${PORT}/api/endpoints`);
 });
 
 export default app;
