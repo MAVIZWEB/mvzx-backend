@@ -26,7 +26,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // Get user dashboard data
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     // Get user with wallet
     const user = await prisma.user.findUnique({
@@ -77,7 +80,10 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 // Get user profile
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -98,5 +104,4 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Add default export
 export default router;
