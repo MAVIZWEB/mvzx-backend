@@ -7,7 +7,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -25,8 +25,12 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 // Get user staking plans
-router.get('/plans', authenticateToken, async (req, res) => {
+router.get('/plans', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const userId = req.user.userId;
 
     const stakingPlans = await prisma.staking.findMany({
@@ -42,8 +46,12 @@ router.get('/plans', authenticateToken, async (req, res) => {
 });
 
 // Create staking plan
-router.post('/create', authenticateToken, async (req, res) => {
+router.post('/create', authenticateToken, async (req: express.Request, res: express.Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const userId = req.user.userId;
     const { amount, duration } = req.body;
 
