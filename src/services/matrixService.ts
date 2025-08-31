@@ -1,4 +1,4 @@
- import { PrismaClient } from "@prisma/client";
+  import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // Percent definitions (per LEG base)
@@ -11,25 +11,12 @@ const P = {
   CP: 0.10,
 };
 
-export async function assignPositionAndDistribute(userId: number, matrixBase: number, purchaseId: number) {
+export async function assignPositionAndDistribute(userId: number, matrixBase: number) {
   // matrixBase is the 'per-unit' base (e.g. 1.5 USDT or 2000 NGN equivalent)
   // Simple 2x2 logic per purchase unit:
   // - create or get user's current stage record
-  let cur = await prisma.matrix.findFirst({ 
-    where: { userId }, 
-    orderBy: { stage: "desc" } 
-  });
-  
-  if (!cur) {
-    cur = await prisma.matrix.create({ 
-      data: { 
-        userId, 
-        stage: 1, 
-        position: 0, 
-        earnings: 0 
-      } 
-    });
-  }
+  let cur = await prisma.matrix.findFirst({ where: { userId }, orderBy: { stage: "desc" } });
+  if (!cur) cur = await prisma.matrix.create({ data: { userId, stage: 1, position: 0, earnings: 0 } });
 
   const stage = cur.stage;
   const jbPct = stage === 1 ? P.JB : 0;
@@ -65,34 +52,10 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
   let newStage = stage;
   if (stage < 20) {
     newStage = stage + 1;
-    await prisma.matrix.create({ 
-      data: { 
-        userId, 
-        stage: newStage, 
-        position: 0, 
-        earnings: 0 
-      } 
-    });
+    await prisma.matrix.create({ data: { userId, stage: newStage, position: 0, earnings: 0 } });
   } else {
     // stage 20: do NOT auto recycle user; company-only reentry handled separately
   }
-
-  // Record the distribution
-  await prisma.matrixDistribution.create({
-    data: {
-      userId,
-      matrixId: cur.id,
-      purchaseId,
-      stage,
-      matrixBase,
-      mcReward: rewards.MC,
-      jbReward: rewards.JB,
-      nspReward: rewards.NSP,
-      crReward: rewards.CR,
-      lpReward: rewards.LP,
-      cpReward: rewards.CP,
-    }
-  });
 
   return {
     success: true,
@@ -101,4 +64,50 @@ export async function assignPositionAndDistribute(userId: number, matrixBase: nu
     rewards,
     legsFilled: legsToCredit
   };
+}
+
+// Find available position in the matrix
+export async function findAvailablePosition(stage: number) {
+  // Implementation for finding available position in the matrix
+  // This would depend on your specific matrix structure
+  return 1; // Simplified for this example
+}
+
+// Check if matrix is completed and process rewards
+export async function checkMatrixCompletion(userId: number, stage: number) {
+  const matrix = await prisma.matrix.findFirst({
+    where: { userId, stage },
+    include: { user: true }
+  });
+
+  if (!matrix) return false;
+
+  // Check if both legs are filled (simplified logic)
+  const isCompleted = matrix.leftLeg !== null && matrix.rightLeg !== null;
+  
+  if (isCompleted && !matrix.isCompleted) {
+    // Update matrix as completed
+    await prisma.matrix.update({
+      where: { id: matrix.id },
+      data: { 
+        isCompleted: true,
+        completedAt: new Date()
+      }
+    });
+
+    // Add earning record for the user
+    await prisma.earning.create({
+      data: {
+        userId,
+        amount: matrix.earnings,
+        type: 'matrix',
+        source: `Stage ${stage} completion`,
+        status: 'pending'
+      }
+    });
+
+    return true;
+  }
+
+  return false;
 }
