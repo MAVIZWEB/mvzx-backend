@@ -1,45 +1,134 @@
- {
-  "name": "mvzx-backend",
-  "version": "1.0.0",
-  "description": "MVZx MLM/Affiliate Platform Backend",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev src/index.ts",
-    "migrate": "npx prisma migrate dev",
-    "generate": "npx prisma generate"
-  },
-  "dependencies": {
-    "@prisma/client": "^4.11.0",
-    "@types/bcryptjs": "^2.4.2",
-    "@types/jsonwebtoken": "^8.5.9",
-    "axios": "^1.4.0",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "ethers": "^5.7.2",
-    "express": "^4.18.2",
-    "express-rate-limit": "^6.7.0",
-    "express-validator": "^7.0.1",
-    "flutterwave-node-v3": "^1.0.9",
-    "jsonwebtoken": "^9.0.0",
-    "morgan": "^1.10.0",
-    "nodemailer": "^6.9.3",
-    "prisma": "^4.11.0",
-    "uuid": "^9.0.0",
-    "validator": "^13.9.0",
-    "web3": "^1.10.0"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.13",
-    "@types/express": "^4.17.17",
-    "@types/express-validator": "^3.0.0",
-    "@types/morgan": "^1.9.4",
-    "@types/node": "^18.15.11",
-    "@types/uuid": "^9.0.1",
-    "@types/validator": "^13.7.12",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^4.9.5"
-  }
+ import { ethers } from 'ethers';
+import { PrismaClient } from '@prisma/client';
+import Web3 from 'web3';
+
+const prisma = new PrismaClient();
+
+// Initialize provider and contracts
+const provider = new ethers.providers.JsonRpcProvider(process.env.BNB_RPC_URL);
+const adminWallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
+const web3 = new Web3(process.env.BNB_RPC_URL!);
+
+// Token contracts
+const mvzxTokenAbi = [
+    "function balanceOf(address) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function decimals() view returns (uint8)"
+];
+
+const usdtTokenAbi = [
+    "function balanceOf(address) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function decimals() view returns (uint8)"
+];
+
+const mvzxContract = new ethers.Contract(process.env.MVZX_TOKEN_CONTRACT!, mvzxTokenAbi, adminWallet);
+const usdtContract = new ethers.Contract(process.env.USDT_CONTRACT!, usdtTokenAbi, adminWallet);
+
+export class BlockchainService {
+    // Generate a new wallet for user
+    static generateWallet() {
+        const wallet = ethers.Wallet.createRandom();
+        return {
+            address: wallet.address,
+            privateKey: wallet.privateKey,
+            mnemonic: wallet.mnemonic.phrase
+        };
+    }
+
+    // Transfer MVZx tokens
+    static async transferMVZx(to: string, amount: number) {
+        try {
+            const decimals = await mvzxContract.decimals();
+            const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
+            
+            const tx = await mvzxContract.transfer(to, amountInWei);
+            await tx.wait();
+            
+            return { success: true, txHash: tx.hash };
+        } catch (error) {
+            console.error('Error transferring MVZx:', error);
+            return { success: false, error };
+        }
+    }
+
+    // Transfer USDT
+    static async transferUSDT(to: string, amount: number) {
+        try {
+            const decimals = await usdtContract.decimals();
+            const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
+            
+            const tx = await usdtContract.transfer(to, amountInWei);
+            await tx.wait();
+            
+            return { success: true, txHash: tx.hash };
+        } catch (error) {
+            console.error('Error transferring USDT:', error);
+            return { success: false, error };
+        }
+    }
+
+    // Check token balance
+    static async getBalance(address: string, token: 'MVZX' | 'USDT') {
+        try {
+            const contract = token === 'MVZX' ? mvzxContract : usdtContract;
+            const decimals = await contract.decimals();
+            const balance = await contract.balanceOf(address);
+            
+            return parseFloat(ethers.utils.formatUnits(balance, decimals));
+        } catch (error) {
+            console.error(`Error getting ${token} balance:`, error);
+            return 0;
+        }
+    }
+
+    // Verify transaction using Web3 for broader compatibility
+    static async verifyTransaction(txHash: string, expectedFrom: string, expectedTo: string, expectedAmount: number) {
+        try {
+            // Try ethers first
+            try {
+                const receipt = await provider.getTransactionReceipt(txHash);
+                if (!receipt || receipt.status !== 1) return false;
+                
+                const tx = await provider.getTransaction(txHash);
+                if (!tx) return false;
+                
+                // Check if transaction matches expected parameters
+                const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
+                const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
+                
+                const contract = tx.to?.toLowerCase() === process.env.USDT_CONTRACT!.toLowerCase() ? usdtContract : mvzxContract;
+                const decimals = await contract.decimals();
+                const amountInWei = ethers.utils.parseUnits(expectedAmount.toString(), decimals);
+                
+                const isAmountMatch = tx.value ? tx.value.eq(amountInWei) : false;
+                
+                return isFromMatch && isToMatch && isAmountMatch;
+            } catch (e) {
+                // Fallback to Web3 if ethers fails
+                console.log('Falling back to Web3 for transaction verification');
+                const receipt = await web3.eth.getTransactionReceipt(txHash);
+                if (!receipt || receipt.status === false) return false;
+                
+                const tx = await web3.eth.getTransaction(txHash);
+                if (!tx) return false;
+                
+                const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
+                const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
+                
+                // For Web3, we need to handle amount differently
+                const amountInWei = web3.utils.toWei(expectedAmount.toString(), 'ether');
+                const isAmountMatch = tx.value === amountInWei;
+                
+                return isFromMatch && isToMatch && isAmountMatch;
+            }
+        } catch (error) {
+            console.error('Error verifying transaction:', error);
+            return false;
+        }
+    }
 }
+
+export default BlockchainService;
