@@ -8,159 +8,133 @@ datasource db {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
-  phone       String
-  password    String
-  pin         String
-  referrerId  Int?
-  referrer    User?    @relation("UserReferrals", fields: [referrerId], references: [id])
-  referrals   User[]   @relation("UserReferrals")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  phone           String?
+  fullName        String
+  pin             String
+  walletAddress   String    @unique
+  referralCode    String    @unique
+  referredBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isActive        Boolean   @default(true)
+  isAdmin         Boolean   @default(false)
+  
   // Relations
-  wallet      Wallet?
-  purchases   Purchase[]
-  matrices    Matrix[]
-  earnings    Earning[]
-  withdrawals Withdrawal[]
-  stakings    Staking[]
-  stakingRewards StakingReward[]
-  referralRewards ReferralReward[]
-  matrixDistributions MatrixDistribution[] // Added this relation
+  wallet          Wallet?
+  matrixPositions Matrix[]
+  purchases       Purchase[]
+  earnings        Earning[]
+  withdrawals     Withdrawal[]
+  referrals       Referral[]
+  stakes          Stake[]
 }
 
 model Wallet {
-  id           Int      @id @default(autoincrement())
-  userId       Int      @unique
-  user         User     @relation(fields: [userId], references: [id])
-  address      String   @unique
-  balance      Float    @default(0)
-  lockedBalance Float   @default(0)
-  stakedBalance Float   @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        Int     @id @default(autoincrement())
+  userId    Int     @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mvzx      Decimal @default(0.5) // Starting with 0.5 MVZx
+  usdt      Decimal @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Purchase {
-  id            Int      @id @default(autoincrement())
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  amount        Float
-  currency      String
-  paymentMethod String
-  status        String   @default("pending")
-  txHash        String?
-  txRef         String?
-  flwRef        String?
-  proofImage    String?
-  bankName      String?
-  accountName   String?
-  accountNumber String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  matrixDistributions MatrixDistribution[]
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  currency    String    // NGN, USDT
+  status      String    @default("pending") // pending, approved, rejected
+  method      String    // usdt, flutterwave, bank
+  txHash      String?
+  flutterwaveRef String?
+  bankRef     String?
+  tokens      Decimal
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  approvedAt  DateTime?
+  approvedBy  Int?
 }
 
 model Matrix {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  stage     Int
-  position  Int      @default(0)
-  earnings  Float    @default(0)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage     Int     @default(1)
+  position  Int     @default(0)
+  earnings  Decimal @default(0)
+  leftLeg   Int?
+  rightLeg  Int?
+  isCompleted Boolean @default(false)
+  completedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  distributions MatrixDistribution[] @relation("MatrixDistributions") // Added relation name
-
-  @@unique([userId, stage])
-}
-
-model MatrixDistribution {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id], name: "MatrixDistributionUser") // Added relation name
-  purchaseId Int
-  purchase   Purchase @relation(fields: [purchaseId], references: [id])
-  stage      Int
-  matrixBase Float
-  mcReward   Float
-  jbReward   Float
-  nspReward  Float
-  crReward   Float
-  lpReward   Float
-  cpReward   Float
-  createdAt  DateTime @default(now())
-
-  // Relations - Fixed the missing opposite relation
-  matrixId   Int?     // Added this field
-  matrix     Matrix?  @relation(fields: [matrixId], references: [id], name: "MatrixDistributions") // Added relation name
-}
-
-model ReferralReward {
-  id              Int      @id @default(autoincrement())
-  purchaserId     Int
-  purchaser       User     @relation("ReferralRewardPurchaser", fields: [purchaserId], references: [id])
-  referrerId      Int
-  referrer        User     @relation("ReferralRewardReferrer", fields: [referrerId], references: [id])
-  amount          Float
-  purchaserReward Float
-  referrerReward  Float
-  currency        String
-  originalAmount  Float
-  createdAt       DateTime @default(now())
 }
 
 model Earning {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  amount      Float
-  type        String
-  description String?
-  createdAt   DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  type      String    // referral, matrix, staking
+  source    String?
+  status    String    @default("pending") // pending, paid
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
 }
 
 model Withdrawal {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  amount      Float
-  method      String
-  destination String
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  currency    String    // NGN, USDT
+  type        String    // bank, usdt
+  bankName    String?
+  accountNumber String?
+  accountName String?
+  usdtAddress String?
+  status      String    @default("pending") // pending, processing, completed, failed
+  txHash      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
 }
 
-model Staking {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
-  amount       Float
-  duration     Int
-  apy          Float
-  maturityDate DateTime
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  stakingRewards StakingReward[]
+model Referral {
+  id          Int       @id @default(autoincrement())
+  referrerId  Int
+  referrer    User      @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId   Int
+  referee     User      @relation(fields: [refereeId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  commission  Decimal
+  level       Int       @default(1)
+  createdAt   DateTime  @default(now())
 }
 
-model StakingReward {
-  id         Int      @id @default(autoincrement())
-  stakingId  Int
-  staking    Staking  @relation(fields: [stakingId], references: [id])
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  amount     Float
-  rewardDate DateTime
-  createdAt  DateTime @default(now())
+model Stake {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  duration    Int       @default(150) // days
+  startDate   DateTime  @default(now())
+  endDate     DateTime
+  apy         Decimal   @default(100) // 100%
+  status      String    @default("active") // active, completed, cancelled
+  rewards     Decimal   @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model SystemSettings {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique
+  value       String
+  description String?
+  updatedAt   DateTime  @updatedAt
 }
