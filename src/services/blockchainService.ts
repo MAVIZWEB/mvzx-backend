@@ -1,13 +1,11 @@
-import { ethers } from 'ethers';
+ import { ethers } from 'ethers';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Initialize provider and contracts
 const provider = new ethers.providers.JsonRpcProvider(process.env.BNB_RPC_URL);
 const adminWallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
 
-// Token contracts
 const mvzxTokenAbi = [
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -26,7 +24,6 @@ const mvzxContract = new ethers.Contract(process.env.MVZX_TOKEN_CONTRACT!, mvzxT
 const usdtContract = new ethers.Contract(process.env.USDT_CONTRACT!, usdtTokenAbi, adminWallet);
 
 export class BlockchainService {
-  // Generate a new wallet for user
   static generateWallet() {
     const wallet = ethers.Wallet.createRandom();
     return {
@@ -36,7 +33,6 @@ export class BlockchainService {
     };
   }
 
-  // Transfer MVZx tokens
   static async transferMVZx(to: string, amount: number) {
     try {
       const decimals = await mvzxContract.decimals();
@@ -52,7 +48,6 @@ export class BlockchainService {
     }
   }
 
-  // Transfer USDT
   static async transferUSDT(to: string, amount: number) {
     try {
       const decimals = await usdtContract.decimals();
@@ -68,7 +63,6 @@ export class BlockchainService {
     }
   }
 
-  // Check token balance
   static async getBalance(address: string, token: 'MVZX' | 'USDT') {
     try {
       const contract = token === 'MVZX' ? mvzxContract : usdtContract;
@@ -82,7 +76,6 @@ export class BlockchainService {
     }
   }
 
-  // Verify transaction
   static async verifyTransaction(txHash: string, expectedFrom: string, expectedTo: string, expectedAmount: number) {
     try {
       const receipt = await provider.getTransactionReceipt(txHash);
@@ -91,7 +84,6 @@ export class BlockchainService {
       const tx = await provider.getTransaction(txHash);
       if (!tx) return false;
       
-      // Check if transaction matches expected parameters
       const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
       const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
       
