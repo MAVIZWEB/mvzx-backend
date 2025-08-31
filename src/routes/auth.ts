@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
+import { ethers } from 'ethers';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -54,7 +55,7 @@ router.post('/signup', [
     if (referralCode) {
       const referrer = await prisma.user.findUnique({ where: { referralCode } });
       if (referrer) {
-        referredBy = referrer.id;
+        referredBy = referrer.id.toString();
       }
     }
 
@@ -66,7 +67,7 @@ router.post('/signup', [
         fullName,
         pin: hashedPin,
         referralCode: userReferralCode,
-        referredBy: referredBy ? referredBy.toString() : null,
+        referredBy: referredBy,
         wallet: {
           create: {
             mvzx: 0.5, // Free 0.5 MVZx tokens
