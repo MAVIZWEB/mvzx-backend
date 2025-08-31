@@ -1,11 +1,15 @@
  import { ethers } from 'ethers';
 import { PrismaClient } from '@prisma/client';
+import Web3 from 'web3';
 
 const prisma = new PrismaClient();
 
+// Initialize provider and contracts
 const provider = new ethers.providers.JsonRpcProvider(process.env.BNB_RPC_URL);
 const adminWallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY!, provider);
+const web3 = new Web3(process.env.BNB_RPC_URL!);
 
+// Token contracts
 const mvzxTokenAbi = [
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -24,6 +28,7 @@ const mvzxContract = new ethers.Contract(process.env.MVZX_TOKEN_CONTRACT!, mvzxT
 const usdtContract = new ethers.Contract(process.env.USDT_CONTRACT!, usdtTokenAbi, adminWallet);
 
 export class BlockchainService {
+  // Generate a new wallet for user
   static generateWallet() {
     const wallet = ethers.Wallet.createRandom();
     return {
@@ -33,6 +38,7 @@ export class BlockchainService {
     };
   }
 
+  // Transfer MVZx tokens
   static async transferMVZx(to: string, amount: number) {
     try {
       const decimals = await mvzxContract.decimals();
@@ -48,6 +54,7 @@ export class BlockchainService {
     }
   }
 
+  // Transfer USDT
   static async transferUSDT(to: string, amount: number) {
     try {
       const decimals = await usdtContract.decimals();
@@ -63,6 +70,7 @@ export class BlockchainService {
     }
   }
 
+  // Check token balance
   static async getBalance(address: string, token: 'MVZX' | 'USDT') {
     try {
       const contract = token === 'MVZX' ? mvzxContract : usdtContract;
@@ -76,24 +84,46 @@ export class BlockchainService {
     }
   }
 
+  // Verify transaction using Web3 for broader compatibility
   static async verifyTransaction(txHash: string, expectedFrom: string, expectedTo: string, expectedAmount: number) {
     try {
-      const receipt = await provider.getTransactionReceipt(txHash);
-      if (!receipt || receipt.status !== 1) return false;
-      
-      const tx = await provider.getTransaction(txHash);
-      if (!tx) return false;
-      
-      const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
-      const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
-      
-      const contract = tx.to?.toLowerCase() === process.env.USDT_CONTRACT!.toLowerCase() ? usdtContract : mvzxContract;
-      const decimals = await contract.decimals();
-      const amountInWei = ethers.utils.parseUnits(expectedAmount.toString(), decimals);
-      
-      const isAmountMatch = tx.value ? tx.value.eq(amountInWei) : false;
-      
-      return isFromMatch && isToMatch && isAmountMatch;
+      // Try ethers first
+      try {
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt || receipt.status !== 1) return false;
+        
+        const tx = await provider.getTransaction(txHash);
+        if (!tx) return false;
+        
+        // Check if transaction matches expected parameters
+        const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
+        const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
+        
+        const contract = tx.to?.toLowerCase() === process.env.USDT_CONTRACT!.toLowerCase() ? usdtContract : mvzxContract;
+        const decimals = await contract.decimals();
+        const amountInWei = ethers.utils.parseUnits(expectedAmount.toString(), decimals);
+        
+        const isAmountMatch = tx.value ? tx.value.eq(amountInWei) : false;
+        
+        return isFromMatch && isToMatch && isAmountMatch;
+      } catch (e) {
+        // Fallback to Web3 if ethers fails
+        console.log('Falling back to Web3 for transaction verification');
+        const receipt = await web3.eth.getTransactionReceipt(txHash);
+        if (!receipt || receipt.status === false) return false;
+        
+        const tx = await web3.eth.getTransaction(txHash);
+        if (!tx) return false;
+        
+        const isFromMatch = tx.from.toLowerCase() === expectedFrom.toLowerCase();
+        const isToMatch = tx.to?.toLowerCase() === expectedTo.toLowerCase();
+        
+        // For Web3, we need to handle amount differently
+        const amountInWei = web3.utils.toWei(expectedAmount.toString(), 'ether');
+        const isAmountMatch = tx.value === amountInWei;
+        
+        return isFromMatch && isToMatch && isAmountMatch;
+      }
     } catch (error) {
       console.error('Error verifying transaction:', error);
       return false;
