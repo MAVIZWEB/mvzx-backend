@@ -36,7 +36,7 @@ const authenticateAdmin = (req: any, res: any, next: any) => {
 };
 
 // Get all pending purchases (for admin approval)
-router.get('/purchases/pending', authenticateAdmin, async (req, res) => {
+router.get('/purchases/pending', authenticateAdmin, async (req: any, res: any) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -71,7 +71,7 @@ router.get('/purchases/pending', authenticateAdmin, async (req, res) => {
 });
 
 // Approve purchase
-router.post('/purchases/approve/:id', authenticateAdmin, async (req, res) => {
+router.post('/purchases/approve/:id', authenticateAdmin, async (req: any, res: any) => {
   try {
     const { id } = req.params;
 
@@ -130,7 +130,7 @@ router.post('/purchases/approve/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Get all pending withdrawals
-router.get('/withdrawals/pending', authenticateAdmin, async (req, res) => {
+router.get('/withdrawals/pending', authenticateAdmin, async (req: any, res: any) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -165,7 +165,7 @@ router.get('/withdrawals/pending', authenticateAdmin, async (req, res) => {
 });
 
 // Process withdrawal
-router.post('/withdrawals/process/:id', authenticateAdmin, async (req, res) => {
+router.post('/withdrawals/process/:id', authenticateAdmin, async (req: any, res: any) => {
   try {
     const { id } = req.params;
 
