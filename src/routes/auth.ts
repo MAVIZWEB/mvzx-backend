@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
-import BlockchainService from '../services/blockchainService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -25,7 +24,7 @@ router.post('/signup', [
   body('fullName').trim().isLength({ min: 2 }),
   body('pin').isLength({ min: 4, max: 4 }).isNumeric(),
   body('referralCode').optional().trim()
-], async (req, res) => {
+], async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -48,7 +47,7 @@ router.post('/signup', [
     const userReferralCode = generateReferralCode();
 
     // Generate wallet
-    const wallet = BlockchainService.generateWallet();
+    const wallet = ethers.Wallet.createRandom();
 
     // Check if referral code is valid
     let referredBy = null;
@@ -115,7 +114,7 @@ router.post('/signup', [
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
   body('pin').isLength({ min: 4, max: 4 }).isNumeric()
-], async (req, res) => {
+], async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
