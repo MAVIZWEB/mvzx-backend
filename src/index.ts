@@ -4,7 +4,6 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import { validateEnvironment } from './utils/envValidator';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -17,18 +16,7 @@ import withdrawalRoutes from './routes/withdrawal';
 import stakeRoutes from './routes/stake';
 import adminRoutes from './routes/admin';
 
-// Load environment variables
 config();
-
-// Validate environment before starting
-try {
-  validateEnvironment();
-  console.log('Environment validation successful');
-} catch (error: any) {
-  console.error('Environment validation failed:', error.message);
-  process.exit(1);
-}
-
 const app = express();
 const prisma = new PrismaClient();
 
@@ -62,11 +50,7 @@ app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.LIVE === 'true' ? 'production' : 'development'
-  });
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Error handling middleware
@@ -88,8 +72,6 @@ const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Live mode: ${process.env.LIVE === 'true' ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Company wallet: ${process.env.COMPANY_WALLET}`);
 });
 
 export default app;
