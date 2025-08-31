@@ -32,7 +32,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 router.post('/usdt', authenticateToken, [
   body('amount').isFloat({ min: 200 }),
   body('txHash').isLength({ min: 64, max: 66 })
-], async (req, res) => {
+], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -150,7 +150,7 @@ router.post('/usdt', authenticateToken, [
 // Purchase with Flutterwave (NGN)
 router.post('/flutterwave', authenticateToken, [
   body('amount').isFloat({ min: 200 })
-], async (req, res) => {
+], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -211,7 +211,7 @@ router.post('/flutterwave', authenticateToken, [
 });
 
 // Verify Flutterwave payment
-router.get('/verify-flutterwave', async (req, res) => {
+router.get('/verify-flutterwave', async (req: express.Request, res: express.Response) => {
   try {
     const { transaction_id, tx_ref, status } = req.query;
 
@@ -310,7 +310,7 @@ router.get('/verify-flutterwave', async (req, res) => {
 router.post('/bank', authenticateToken, [
   body('amount').isFloat({ min: 200 }),
   body('bankRef').trim().isLength({ min: 1 })
-], async (req, res) => {
+], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
