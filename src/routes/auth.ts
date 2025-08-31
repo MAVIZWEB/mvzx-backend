@@ -1,119 +1,170 @@
  import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { UserModel, CreateUserInput } from '../models/User';
+import { PrismaClient } from '@prisma/client';
+import { body, validationResult } from 'express-validator';
+import BlockchainService from '../services/blockchainService';
 
 const router = express.Router();
+const prisma = new PrismaClient();
 
-// Signup with Free 0.5 MVZx Tokens
-router.post('/signup', async (req: express.Request, res: express.Response) => {
+// Generate referral code
+function generateReferralCode(length = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Sign up
+router.post('/signup', [
+  body('email').isEmail().normalizeEmail(),
+  body('phone').isMobilePhone('any'),
+  body('fullName').trim().isLength({ min: 2 }),
+  body('pin').isLength({ min: 4, max: 4 }).isNumeric(),
+  body('referralCode').optional().trim()
+], async (req, res) => {
   try {
-    const { email, phone, password, pin, referrerCode } = req.body;
-
-    // Validate input
-    if (!email || !phone || !password || !pin) {
-      return res.status(400).json({ error: 'All fields are required' });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    if (pin.length !== 4 || !/^\d+$/.test(pin)) {
-      return res.status(400).json({ error: 'PIN must be 4 digits' });
-    }
+    const { email, phone, fullName, pin, referralCode } = req.body;
 
     // Check if user already exists
-    const existingUser = await UserModel.findByEmail(email);
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ success: false, message: 'User already exists' });
     }
 
-    // Hash password and PIN
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const hashedPin = await bcrypt.hash(pin + process.env.PIN_SALT, 10);
+    // Hash PIN with salt
+    const salt = process.env.PIN_SALT!;
+    const hashedPin = await bcrypt.hash(pin + salt, 10);
 
-    // Find referrer if provided
-    let referrerId = null;
-    if (referrerCode) {
-      const referrer = await UserModel.findByEmail(referrerCode);
+    // Generate referral code
+    const userReferralCode = generateReferralCode();
+
+    // Generate wallet
+    const wallet = BlockchainService.generateWallet();
+
+    // Check if referral code is valid
+    let referredBy = null;
+    if (referralCode) {
+      const referrer = await prisma.user.findUnique({ where: { referralCode } });
       if (referrer) {
-        referrerId = referrer.id;
+        referredBy = referrer.id;
       }
     }
 
     // Create user
-    const userData: CreateUserInput = {
-      email,
-      phone,
-      password: hashedPassword,
-      pin: hashedPin,
-      referrerId
-    };
+    const user = await prisma.user.create({
+      data: {
+        email,
+        phone,
+        fullName,
+        pin: hashedPin,
+        referralCode: userReferralCode,
+        referredBy: referredBy ? referredBy.toString() : null,
+        wallet: {
+          create: {
+            mvzx: 0.5, // Free 0.5 MVZx tokens
+          }
+        }
+      },
+      include: {
+        wallet: true
+      }
+    });
 
-    const user = await UserModel.create(userData);
-
-    // Generate JWT token
+    // Create JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.status(201).json({
+      success: true,
       message: 'User created successfully',
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        wallet: user.wallet
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          referralCode: user.referralCode,
+          walletAddress: wallet.address
+        },
+        token,
+        wallet: {
+          address: wallet.address,
+          privateKey: wallet.privateKey, // Only returned once during signup
+          mvzx: user.wallet?.mvzx || 0
+        }
       }
     });
   } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
 // Login
-router.post('/login', async (req: express.Request, res: express.Response) => {
+router.post('/login', [
+  body('email').isEmail().normalizeEmail(),
+  body('pin').isLength({ min: 4, max: 4 }).isNumeric()
+], async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
+
+    const { email, pin } = req.body;
 
     // Find user
-    const user = await UserModel.findByEmail(email);
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { wallet: true }
+    });
+
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    // Verify PIN
+    const salt = process.env.PIN_SALT!;
+    const isValidPin = await bcrypt.compare(pin + salt, user.pin);
+    if (!isValidPin) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // Generate JWT token
+    // Create JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.json({
+      success: true,
       message: 'Login successful',
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          referralCode: user.referralCode
+        },
+        token,
         wallet: user.wallet
       }
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
