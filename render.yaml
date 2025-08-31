@@ -1,0 +1,76 @@
+services:
+  - type: web
+    name: mvzx-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromSecret: DATABASE_URL
+      - key: BNB_RPC_URL
+        fromSecret: BNB_RPC_URL
+      - key: MVZX_TOKEN_CONTRACT
+        fromSecret: MVZX_TOKEN_CONTRACT
+      - key: USDT_CONTRACT
+        fromSecret: USDT_CONTRACT
+      - key: SLOT_COST_NGN
+        value: 2000
+      - key: MVZX_USDT_RATE
+        value: 0.15
+      - key: FLW_PUBLIC_KEY
+        fromSecret: FLW_PUBLIC_KEY
+      - key: FLW_SECRET_KEY
+        fromSecret: FLW_SECRET_KEY
+      - key: ADMIN_PRIVATE_KEY
+        fromSecret: ADMIN_PRIVATE_KEY
+      - key: COMPANY_WALLET
+        fromSecret: COMPANY_WALLET
+      - key: PIN_SALT
+        value: amabeth 41
+      - key: API_RATE_LIMIT
+        value: 100
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        fromSecret: JWT_SECRET
+      - key: FLW_ENCRYPTION_KEY
+        fromSecret: FLW_ENCRYPTION_KEY
+      - key: LIVE
+        value: true
+      - key: NGN_PER_USDT
+        value: 1500
+      - key: COMPANY_BANK_NAME
+        value: UBA
+      - key: COMPANY_BANK_ACCOUNT_NUMBER
+        value: 1026664654
+      - key: COMPANY_BANK_ACCOUNT_NAME
+        value: MASSES
+      - key: FRONTEND_URL
+        value: https://maviz-kefi.onrender.com
+      - key: CORS_ORIGIN
+        value: https://maviz-kefi.onrender.com
+
+  - type: web
+    name: mvzx-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://mvzx-backend.onrender.com
+      - key: REACT_APP_FLW_PUBLIC_KEY
+        fromSecret: FLW_PUBLIC_KEY
+      - key: REACT_APP_MVZX_TOKEN_CONTRACT
+        fromSecret: MVZX_TOKEN_CONTRACT
+      - key: REACT_APP_USDT_CONTRACT
+        fromSecret: USDT_CONTRACT
+      - key: REACT_APP_BNB_RPC_URL
+        fromSecret: BNB_RPC_URL
+      - key: REACT_APP_COMPANY_WALLET
+        fromSecret: COMPANY_WALLET
+      - key: REACT_APP_COMPANY_BANK_NAME
+        value: UBA
+      - key: REACT_APP_COMPANY_BANK_ACCOUNT_NUMBER
+        value: 1026664654
+      - key: REACT_APP_COMPANY_BANK_ACCOUNT_NAME
+        value: MASSES
