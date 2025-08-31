@@ -1,9 +1,9 @@
-services:
+ services:
   - type: web
     name: mvzx-backend
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm run migrate && npm start
     envVars:
       - key: DATABASE_URL
         fromSecret: DATABASE_URL
@@ -46,31 +46,6 @@ services:
       - key: COMPANY_BANK_ACCOUNT_NAME
         value: MASSES
       - key: FRONTEND_URL
-        value: https://maviz-kefi.onrender.com
+        value: https://mvzx-frontend.onrender.com
       - key: CORS_ORIGIN
-        value: https://maviz-kefi.onrender.com
-
-  - type: web
-    name: mvzx-frontend
-    env: static
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./build
-    envVars:
-      - key: REACT_APP_API_URL
-        value: https://mvzx-backend.onrender.com
-      - key: REACT_APP_FLW_PUBLIC_KEY
-        fromSecret: FLW_PUBLIC_KEY
-      - key: REACT_APP_MVZX_TOKEN_CONTRACT
-        fromSecret: MVZX_TOKEN_CONTRACT
-      - key: REACT_APP_USDT_CONTRACT
-        fromSecret: USDT_CONTRACT
-      - key: REACT_APP_BNB_RPC_URL
-        fromSecret: BNB_RPC_URL
-      - key: REACT_APP_COMPANY_WALLET
-        fromSecret: COMPANY_WALLET
-      - key: REACT_APP_COMPANY_BANK_NAME
-        value: UBA
-      - key: REACT_APP_COMPANY_BANK_ACCOUNT_NUMBER
-        value: 1026664654
-      - key: REACT_APP_COMPANY_BANK_ACCOUNT_NAME
-        value: MASSES
+        value: https://mvzx-frontend.onrender.com
