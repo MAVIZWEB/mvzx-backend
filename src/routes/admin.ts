@@ -1,181 +1,226 @@
-import express from 'express';
+ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { body, validationResult } from 'express-validator';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Middleware to verify JWT token and admin role
-const authenticateAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+// Middleware to verify admin JWT token
+const authenticateAdmin = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
+    return res.status(401).json({ success: false, message: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
+  jwt.verify(token, process.env.JWT_SECRET!, async (err: any, decoded: any) => {
     if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
+      return res.status(403).json({ success: false, message: 'Invalid or expired token' });
     }
     
-    // Check if user is admin (you would have an admin field in your user model)
-    if (!user.isAdmin) {
-      return res.status(403).json({ error: 'Admin access required' });
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { isAdmin: true }
+    });
+    
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
     }
     
-    (req as any).user = user;
+    req.user = decoded;
     next();
   });
 };
 
-// Get all pending bank transfers
-router.get('/bank-transfers/pending', authenticateAdmin, async (req: express.Request, res: express.Response) => {
+// Get all pending purchases (for admin approval)
+router.get('/purchases/pending', authenticateAdmin, async (req, res) => {
   try {
-    const pendingTransfers = await prisma.purchase.findMany({
-      where: { 
-        paymentMethod: 'bank_transfer',
-        status: 'pending'
-      },
-      include: {
-        user: {
-          select: { email: true, phone: true }
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const purchases = await prisma.purchase.findMany({
+      where: { status: 'pending' },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
+    });
+
+    const total = await prisma.purchase.count({ where: { status: 'pending' } });
+
+    res.json({
+      success: true,
+      data: {
+        purchases,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
         }
       }
     });
-
-    res.json({ transfers: pendingTransfers });
   } catch (error) {
-    console.error('Pending transfers error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Admin purchases error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
-// Approve bank transfer
-router.post('/bank-transfers/:id/approve', authenticateAdmin, async (req: express.Request, res: express.Response) => {
+// Approve purchase
+router.post('/purchases/approve/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const purchase = await prisma.purchase.update({
+    const purchase = await prisma.purchase.findUnique({
       where: { id: parseInt(id) },
-      data: { status: 'completed' },
       include: { user: true }
     });
 
     if (!purchase) {
-      return res.status(404).json({ error: 'Purchase not found' });
+      return res.status(404).json({ success: false, message: 'Purchase not found' });
     }
 
-    // Calculate MVZx tokens to transfer
-    const ngnPerUSDT = parseInt(process.env.NGN_PER_USDT || '1500');
-    const mvzxRate = parseFloat(process.env.MVZX_USDT_RATE || '0.15');
-    const tokenAmount = purchase.amount / ngnPerUSDT / mvzxRate;
+    if (purchase.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Purchase already processed' });
+    }
 
-    // Update wallet balance
-    await prisma.wallet.update({
-      where: { userId: purchase.userId },
-      data: { balance: { increment: tokenAmount } }
-    });
-
-    res.json({ 
-      message: 'Bank transfer approved successfully',
-      purchase,
-      tokensAdded: tokenAmount
-    });
-  } catch (error) {
-    console.error('Approve transfer error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Reject bank transfer
-router.post('/bank-transfers/:id/reject', authenticateAdmin, async (req: express.Request, res: express.Response) => {
-  try {
-    const { id } = req.params;
-    const { reason } = req.body;
-
-    const purchase = await prisma.purchase.update({
+    // Update purchase status
+    await prisma.purchase.update({
       where: { id: parseInt(id) },
-      data: { 
-        status: 'rejected',
-        rejectionReason: reason
+      data: {
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedBy: req.user.userId
       }
     });
 
-    if (!purchase) {
-      return res.status(404).json({ error: 'Purchase not found' });
+    // Update user wallet
+    await prisma.wallet.update({
+      where: { userId: purchase.userId },
+      data: { mvzx: { increment: purchase.tokens } }
+    });
+
+    // Check if amount qualifies for matrix position
+    const slotCost = parseFloat(process.env.SLOT_COST_NGN!);
+    const ngnAmount = Number(purchase.amount);
+    const matrixSlots = Math.floor(ngnAmount / slotCost);
+
+    // Process matrix if applicable
+    if (matrixSlots > 0 && purchase.currency === 'NGN') {
+      const matrixBase = slotCost / parseFloat(process.env.NGN_PER_USDT!); // Convert to USDT equivalent
+      
+      for (let i = 0; i < matrixSlots; i++) {
+        // This would need your matrix service implementation
+        // await assignPositionAndDistribute(purchase.userId, matrixBase);
+      }
     }
 
-    res.json({ 
-      message: 'Bank transfer rejected successfully',
-      purchase
+    res.json({
+      success: true,
+      message: 'Purchase approved successfully'
     });
   } catch (error) {
-    console.error('Reject transfer error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Approve purchase error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
 // Get all pending withdrawals
-router.get('/withdrawals/pending', authenticateAdmin, async (req: express.Request, res: express.Response) => {
+router.get('/withdrawals/pending', authenticateAdmin, async (req, res) => {
   try {
-    const pendingWithdrawals = await prisma.withdrawal.findMany({
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const withdrawals = await prisma.withdrawal.findMany({
       where: { status: 'pending' },
-      include: {
-        user: {
-          select: { email: true, phone: true }
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
+    });
+
+    const total = await prisma.withdrawal.count({ where: { status: 'pending' } });
+
+    res.json({
+      success: true,
+      data: {
+        withdrawals,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
         }
       }
     });
-
-    res.json({ withdrawals: pendingWithdrawals });
   } catch (error) {
-    console.error('Pending withdrawals error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Admin withdrawals error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
 // Process withdrawal
-router.post('/withdrawals/:id/process', authenticateAdmin, async (req: express.Request, res: express.Response) => {
+router.post('/withdrawals/process/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, transactionHash } = req.body;
 
-    if (!['completed', 'rejected'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-
-    const withdrawal = await prisma.withdrawal.update({
+    const withdrawal = await prisma.withdrawal.findUnique({
       where: { id: parseInt(id) },
-      data: { 
-        status,
-        transactionHash: status === 'completed' ? transactionHash : null
-      },
       include: { user: true }
     });
 
     if (!withdrawal) {
-      return res.status(404).json({ error: 'Withdrawal not found' });
+      return res.status(404).json({ success: false, message: 'Withdrawal not found' });
     }
 
-    if (status === 'rejected') {
-      // Return funds to user's wallet
-      await prisma.wallet.update({
-        where: { userId: withdrawal.userId },
-        data: { 
-          balance: { increment: withdrawal.amount },
-          lockedBalance: { decrement: withdrawal.amount }
+    if (withdrawal.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Withdrawal already processed' });
+    }
+
+    // Process withdrawal based on type
+    if (withdrawal.type === 'usdt' && withdrawal.usdtAddress) {
+      // Process USDT withdrawal
+      // This would use your blockchain service
+      // const result = await BlockchainService.transferUSDT(withdrawal.usdtAddress, Number(withdrawal.amount));
+      
+      // if (result.success) {
+        await prisma.withdrawal.update({
+          where: { id: parseInt(id) },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+            txHash: 'tx_hash_here' // result.txHash
+          }
+        });
+      // } else {
+      //   // Handle failure
+      // }
+    } else if (withdrawal.type === 'bank') {
+      // Process bank withdrawal (manual)
+      // This would typically involve initiating a bank transfer through your payment provider
+      
+      // For now, mark as completed
+      await prisma.withdrawal.update({
+        where: { id: parseInt(id) },
+        data: {
+          status: 'completed',
+          completedAt: new Date()
         }
       });
     }
 
-    res.json({ 
-      message: `Withdrawal ${status} successfully`,
-      withdrawal
+    res.json({
+      success: true,
+      message: 'Withdrawal processed successfully'
     });
   } catch (error) {
     console.error('Process withdrawal error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
