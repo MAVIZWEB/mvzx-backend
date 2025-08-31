@@ -2,8 +2,8 @@
   - type: web
     name: mvzx-backend
     env: node
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npm run migrate && npm start
+    buildCommand: npm run render-build
+    startCommand: npm start
     envVars:
       - key: DATABASE_URL
         fromSecret: DATABASE_URL
@@ -46,6 +46,6 @@
       - key: COMPANY_BANK_ACCOUNT_NAME
         value: MASSES
       - key: FRONTEND_URL
-        value: https://mvzx-frontend.onrender.com
+        value: https://maviz-kefi.onrender.com
       - key: CORS_ORIGIN
-        value: https://mvzx-frontend.onrender.com
+        value: https://maviz-kefi.onrender.com
