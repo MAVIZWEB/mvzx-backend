@@ -22,7 +22,7 @@ const prisma = new PrismaClient();
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 1000, // 15 minutes
   max: parseInt(process.env.API_RATE_LIMIT || '100'),
   message: 'Too many requests from this IP'
 });
@@ -49,7 +49,7 @@ app.use('/api/stakes', stakeRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (req: express.Request, res: express.Response) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
@@ -64,7 +64,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (req: express.Request, res: express.Response) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
