@@ -31,7 +31,7 @@ export async function processPurchase(userId: number, amount: number, referralCo
     }
     
     return { success: true, matrixSlots, totalTokens };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Purchase processing error:', error);
     return { success: false, error: error.message };
   }
@@ -128,12 +128,12 @@ async function processReferralRewards(userId: number, amount: number, referralCo
 
 async function processMatrixRewards(matrixId: number, halfBaseAmount: number) {
   const rewards = {
-    MC: halfBaseAmount * P.MC,       // 150 NGN
-    JB: halfBaseAmount * P.JB,       // 100 NGN (only stage 1)
-    NSP: halfBaseAmount * P.NSP,     // 350 NGN
-    CR: halfBaseAmount * P.CR,       // 200 NGN
-    LP: halfBaseAmount * P.LP,       // 100 NGN
-    CP: halfBaseAmount * P.CP,       // 100 NGN
+    MC: Number(halfBaseAmount) * P.MC,       // 150 NGN
+    JB: Number(halfBaseAmount) * P.JB,       // 100 NGN (only stage 1)
+    NSP: Number(halfBaseAmount) * P.NSP,     // 350 NGN
+    CR: Number(halfBaseAmount) * P.CR,       // 200 NGN
+    LP: Number(halfBaseAmount) * P.LP,       // 100 NGN
+    CP: Number(halfBaseAmount) * P.CP,       // 100 NGN
   };
   
   // Store rewards for later distribution
@@ -152,7 +152,7 @@ export async function processLegCompletion(matrixId: number, legType: 'left' | '
   
   if (!matrix) throw new Error('Matrix position not found');
   
-  const halfMC = (matrix.baseAmount * P.MC) / 2; // 75 NGN for stage 1
+  const halfMC = (Number(matrix.baseAmount) * P.MC) / 2; // 75 NGN for stage 1
   
   if (legType === 'left') {
     await prisma.matrix.update({
@@ -197,8 +197,8 @@ async function completeMatrix(matrixId: number) {
   
   if (!matrix) return;
   
-  const totalMC = matrix.baseAmount * P.MC; // Full 150 NGN for stage 1
-  const alreadyPaid = matrix.earnings;
+  const totalMC = Number(matrix.baseAmount) * P.MC; // Full 150 NGN for stage 1
+  const alreadyPaid = Number(matrix.earnings);
   const lumpSum = totalMC - alreadyPaid; // 75 NGN balance for stage 1
   
   // Credit lump sum to user
@@ -220,13 +220,13 @@ async function completeMatrix(matrixId: number) {
   
   // Auto-place in next stage if not stage 20
   if (matrix.stage < 20) {
-    const nextStageBase = await calculateNextStageBase(matrix.stage, matrix.baseAmount);
+    const nextStageBase = await calculateNextStageBase(matrix.stage, Number(matrix.baseAmount));
     await createNextStagePosition(matrix.userId, matrix.stage + 1, nextStageBase);
   }
   
   // Process company re-entry for stage 20
   if (matrix.stage === 20) {
-    await processCompanyReEntry(matrix.baseAmount * P.CR);
+    await processCompanyReEntry(Number(matrix.baseAmount) * P.CR);
   }
 }
 
