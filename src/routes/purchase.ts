@@ -109,7 +109,7 @@ router.post('/usdt', authenticateToken, [
       
       // Reward referrer
       await prisma.wallet.update({
-        where: { userId: parseInt(user.referredBy) },
+        where: { userId: user.referredBy },
         data: { usdt: { increment: referralReward } }
       });
 
@@ -122,7 +122,7 @@ router.post('/usdt', authenticateToken, [
       // Create referral record
       await prisma.referral.create({
         data: {
-          referrerId: parseInt(user.referredBy),
+          referrerId: user.referredBy,
           refereeId: userId,
           amount,
           commission: referralReward * 2, // Total commission (both referrer and buyer)
@@ -141,7 +141,7 @@ router.post('/usdt', authenticateToken, [
         remainder
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('USDT purchase error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
@@ -189,7 +189,8 @@ router.post('/flutterwave', authenticateToken, [
           currency: 'NGN',
           status: 'pending',
           method: 'flutterwave',
-          flutterwaveRef: txRef
+          flutterwaveRef: txRef,
+          tokens: 0 // Will be updated after verification
         }
       });
 
@@ -204,7 +205,7 @@ router.post('/flutterwave', authenticateToken, [
     } else {
       res.status(400).json({ success: false, message: 'Failed to initialize payment' });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Flutterwave payment error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
@@ -274,7 +275,7 @@ router.get('/verify-flutterwave', async (req: express.Request, res: express.Resp
         
         // Reward referrer
         await prisma.wallet.update({
-          where: { userId: parseInt(purchase.user.referredBy) },
+          where: { userId: purchase.user.referredBy },
           data: { usdt: { increment: referralReward } }
         });
 
@@ -287,7 +288,7 @@ router.get('/verify-flutterwave', async (req: express.Request, res: express.Resp
         // Create referral record
         await prisma.referral.create({
           data: {
-            referrerId: parseInt(purchase.user.referredBy),
+            referrerId: purchase.user.referredBy,
             refereeId: purchase.userId,
             amount: usdtAmount,
             commission: referralReward * 2, // Total commission (both referrer and buyer)
@@ -300,7 +301,7 @@ router.get('/verify-flutterwave', async (req: express.Request, res: express.Resp
     } else {
       return res.redirect(`${process.env.FRONTEND_URL}/purchase/failed`);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payment verification error:', error);
     res.redirect(`${process.env.FRONTEND_URL}/purchase/failed`);
   }
@@ -342,7 +343,7 @@ router.post('/bank', authenticateToken, [
       message: 'Purchase pending admin approval',
       data: { purchase }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Bank transfer error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
