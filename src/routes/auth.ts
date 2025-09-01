@@ -51,11 +51,14 @@ router.post('/signup', [
     const wallet = ethers.Wallet.createRandom();
 
     // Check if referral code is valid
-    let referredBy = null;
+    let referredByUserId = null;
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({ where: { referralCode } });
+      const referrer = await prisma.user.findUnique({ 
+        where: { referralCode },
+        select: { id: true }
+      });
       if (referrer) {
-        referredBy = referrer.id.toString();
+        referredByUserId = referrer.id;
       }
     }
 
@@ -66,8 +69,9 @@ router.post('/signup', [
         phone,
         fullName,
         pin: hashedPin,
+        walletAddress: wallet.address,
         referralCode: userReferralCode,
-        referredBy: referredBy,
+        referredBy: referredByUserId,
         wallet: {
           create: {
             mvzx: 0.5, // Free 0.5 MVZx tokens
@@ -105,7 +109,7 @@ router.post('/signup', [
         }
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Signup error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
@@ -162,7 +166,7 @@ router.post('/login', [
         wallet: user.wallet
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
