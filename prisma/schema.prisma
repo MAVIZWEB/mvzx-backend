@@ -33,8 +33,8 @@ model User {
   referralsMade   Referral[] @relation("ReferrerReferrals")
   referralsReceived Referral[] @relation("RefereeReferrals")
   
-  // Self-relation for referral hierarchy
-  referredUsers   User[]     @relation("UserReferrals", fields: [referredBy], references: [id])
+  // Self-relation for referral hierarchy - FIXED RELATION CONFIGURATION
+  referredUsers   User[]     @relation("UserReferrals")
   referrer        User?      @relation("UserReferrals", fields: [referredBy], references: [id])
 }
 
