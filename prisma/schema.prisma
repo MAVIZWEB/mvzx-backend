@@ -15,7 +15,7 @@ model User {
   pin             String
   walletAddress   String    @unique
   referralCode    String    @unique
-  referredBy      String?
+  referredBy      Int?      // Reference to another User's ID
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   isActive        Boolean   @default(true)
@@ -27,8 +27,30 @@ model User {
   purchases       Purchase[]
   earnings        Earning[]
   withdrawals     Withdrawal[]
-  referrals       Referral[]
   stakes          Stake[]
+  
+  // Referral relationships - FIXED AMBIGUOUS RELATIONS
+  referralsMade   Referral[] @relation("ReferrerReferrals")
+  referralsReceived Referral[] @relation("RefereeReferrals")
+  
+  // Self-relation for referral hierarchy
+  referredUsers   User[]     @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrer        User?      @relation("UserReferrals", fields: [referredBy], references: [id])
+}
+
+model Referral {
+  id          Int      @id @default(autoincrement())
+  referrerId  Int
+  referrer    User     @relation("ReferrerReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId   Int
+  referee     User     @relation("RefereeReferrals", fields: [refereeId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  commission  Decimal
+  level       Int      @default(1)
+  type        String   @default("affiliate") // affiliate or mlm
+  createdAt   DateTime @default(now())
+
+  @@unique([referrerId, refereeId])
 }
 
 model Wallet {
@@ -68,8 +90,11 @@ model Matrix {
   earnings  Decimal @default(0)
   leftLeg   Int?
   rightLeg  Int?
+  leftFilled Boolean @default(false)
+  rightFilled Boolean @default(false)
   isCompleted Boolean @default(false)
   completedAt DateTime?
+  baseAmount Decimal // Stores the base amount for this matrix position (half of purchase)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -102,18 +127,6 @@ model Withdrawal {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
-}
-
-model Referral {
-  id          Int       @id @default(autoincrement())
-  referrerId  Int
-  referrer    User      @relation(fields: [referrerId], references: [id], onDelete: Cascade)
-  refereeId   Int
-  referee     User      @relation(fields: [refereeId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  commission  Decimal
-  level       Int       @default(1)
-  createdAt   DateTime  @default(now())
 }
 
 model Stake {
