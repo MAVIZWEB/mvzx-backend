@@ -8,146 +8,62 @@ datasource db {
 }
 
 model User {
-  id              Int       @id @default(autoincrement())
-  email           String    @unique
-  phone           String?
-  fullName        String
-  pin             String
-  walletAddress   String    @unique
-  referralCode    String    @unique
-  referredBy      Int?      // Reference to another User's ID
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  isActive        Boolean   @default(true)
-  isAdmin         Boolean   @default(false)
-  
-  // Relations
-  wallet          Wallet?
-  matrixPositions Matrix[]
-  purchases       Purchase[]
-  earnings        Earning[]
-  withdrawals     Withdrawal[]
-  stakes          Stake[]
-  
-  // Referral relationships - FIXED AMBIGUOUS RELATIONS
-  referralsMade   Referral[] @relation("ReferrerReferrals")
-  referralsReceived Referral[] @relation("RefereeReferrals")
-  
-  // Self-relation for referral hierarchy - FIXED RELATION CONFIGURATION
-  referredUsers   User[]     @relation("UserReferrals")
-  referrer        User?      @relation("UserReferrals", fields: [referredBy], references: [id])
-}
-
-model Referral {
-  id          Int      @id @default(autoincrement())
-  referrerId  Int
-  referrer    User     @relation("ReferrerReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
-  refereeId   Int
-  referee     User     @relation("RefereeReferrals", fields: [refereeId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  commission  Decimal
-  level       Int      @default(1)
-  type        String   @default("affiliate") // affiliate or mlm
-  createdAt   DateTime @default(now())
-
-  @@unique([referrerId, refereeId])
-}
-
-model Wallet {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @unique
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mvzx      Decimal @default(0.5) // Starting with 0.5 MVZx
-  usdt      Decimal @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Purchase {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  currency    String    // NGN, USDT
-  status      String    @default("pending") // pending, approved, rejected
-  method      String    // usdt, flutterwave, bank
-  txHash      String?
-  flutterwaveRef String?
-  bankRef     String?
-  tokens      Decimal
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  approvedAt  DateTime?
-  approvedBy  Int?
+  id             Int      @id @default(autoincrement())
+  email          String?  @unique
+  phone          String?  @unique
+  pinHash        String
+  walletAddress  String   @unique
+  balanceMVZx    Float    @default(0)
+  createdAt      DateTime @default(now())
+  referrerId     Int?
+  referrer       User?    @relation("referrals", fields: [referrerId], references: [id])
+  referrals      User[]   @relation("referrals")
+  matrices       Matrix[]
+  purchases      Purchase[]
+  withdrawals    Withdrawal[]
 }
 
 model Matrix {
-  id        Int     @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   userId    Int
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stage     Int     @default(1)
-  position  Int     @default(0)
-  earnings  Decimal @default(0)
-  leftLeg   Int?
-  rightLeg  Int?
-  leftFilled Boolean @default(false)
-  rightFilled Boolean @default(false)
-  isCompleted Boolean @default(false)
-  completedAt DateTime?
-  baseAmount Decimal // Stores the base amount for this matrix position (half of purchase)
+  user      User     @relation(fields:[userId], references:[id])
+  stage     Int
+  position  Int      @default(0)
+  legsFilled Int     @default(0)
+  earnings  Float    @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
-model Earning {
-  id        Int       @id @default(autoincrement())
-  userId    Int
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount    Decimal
-  type      String    // referral, matrix, staking
-  source    String?
-  status    String    @default("pending") // pending, paid
-  createdAt DateTime  @default(now())
-  paidAt    DateTime?
+model Purchase {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields:[userId], references:[id])
+  amountNGN  Float
+  amountUSDT Float
+  units      Int      // number of slot-units (each SLOT_COST_NGN / MVZX_USDT_RATE unit)
+  paymentMethod String
+  txHash     String?
+  approved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
 
 model Withdrawal {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  currency    String    // NGN, USDT
-  type        String    // bank, usdt
-  bankName    String?
-  accountNumber String?
-  accountName String?
-  usdtAddress String?
-  status      String    @default("pending") // pending, processing, completed, failed
-  txHash      String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  completedAt DateTime?
+  id        Int @id @default(autoincrement())
+  userId    Int
+  user      User @relation(fields:[userId], references:[id])
+  amount    Float
+  method    String
+  dest      String
+  status    String @default("pending")
+  createdAt DateTime @default(now())
 }
 
-model Stake {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  duration    Int       @default(150) // days
-  startDate   DateTime  @default(now())
-  endDate     DateTime
-  apy         Decimal   @default(100) // 100%
-  status      String    @default("active") // active, completed, cancelled
-  rewards     Decimal   @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-}
-
-model SystemSettings {
-  id          Int       @id @default(autoincrement())
-  key         String    @unique
-  value       String
-  description String?
-  updatedAt   DateTime  @updatedAt
+model Staking {
+  id        Int @id @default(autoincrement())
+  userId    Int
+  user      User @relation(fields:[userId], references:[id])
+  amount    Float
+  startAt   DateTime
+  unlockAt  DateTime
+  claimed   Boolean @default(false)
 }
